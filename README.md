@@ -18,6 +18,7 @@ Electron + React + TypeScript + Vite；SQLite 保存本地结构化数据；elec
 
 - [开发规范](AGENTS.md)
 - [底层架构](docs/ARCHITECTURE.md)
+- [多应用运行时、后台任务与内存治理](docs/RUNTIME.md)
 - [插件协议](docs/PLUGIN-SPEC.md)
 - [外部 AI 数据接口](docs/AI-INTERFACE.md)
 - [UI 风格与交互](docs/UI-DESIGN.md)

@@ -34,6 +34,8 @@ apiVersion 为精确主版本匹配，插件 version 使用语义化版本。第
 
 ## 生命周期
 
+运行时详细协议见 [RUNTIME.md](RUNTIME.md)。安装启用仅注册能力描述；实际 activate 在首次使用时执行。UI 会话与后台任务有各自独立的状态机。AI 查询及持久任务需要无 UI 的后台实现；后续 schema 应补充后台入口、任务类型、恢复能力和会话多实例策略，并用版本控制兼容性。
+
 install → validate → grant → migrate → activate → deactivate → uninstall。activate/deactivate 应可重复调用且清理监听器和后台任务。停用后拒绝新增请求，终止或等待在途任务，取消注册命令和 AI 查询。
 
 安装必须校验路径穿越、符号链接、包大小、文件数量、入口路径和重复 ID。摘要校验只证明完整性，不证明发布者可信。第三方签名、撤销和完整沙箱属于后续独立阶段。
