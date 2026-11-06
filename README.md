@@ -21,6 +21,7 @@ Electron + React + TypeScript + Vite；SQLite 保存本地结构化数据；elec
 - [插件协议](docs/PLUGIN-SPEC.md)
 - [外部 AI 数据接口](docs/AI-INTERFACE.md)
 - [UI 风格与交互](docs/UI-DESIGN.md)
+- [UI 库选型与自建边界](docs/UI-LIBRARY.md)
 - [实施计划与验收](docs/ROADMAP.md)
 - [视觉样式变量](design/tokens.css)
 
