@@ -26,4 +26,15 @@ Electron + React + TypeScript + Vite；SQLite 保存本地结构化数据；elec
 - [实施计划与验收](docs/ROADMAP.md)
 - [视觉样式变量](design/tokens.css)
 
-当前交付为架构和规范基线，不包含可运行应用、已实现的插件沙箱或安装包。尚未选择开源许可证；公开发布前由仓库所有者决定。
+## 运行桌面外壳预览
+
+```sh
+pnpm install
+pnpm desktop
+```
+
+浏览器开发预览：`pnpm dev`。类型检查并构建：`pnpm build`。生成 Windows 便携 EXE：`pnpm package`。
+
+预览包含概览、标签切换、笔记编辑、待办、示例模块启停和深浅主题。预览数据存储在 localStorage，正式版本将迁移到 SQLite；浏览器预览和桌面预览的数据不共享。文件服务、插件包安装、独立插件运行时、挂起回收和 MCP 均未接入，不应将内置演示模块当作隔离插件。
+
+当前 UI 用 React 和项目样式实现了基础页面；尚未引入 shadcn/Radix 的复杂交互组件。界面只使用原生控件和简单页面交互。尚未选择开源许可证；公开发布前由仓库所有者决定。
