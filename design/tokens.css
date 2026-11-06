@@ -1,17 +1,26 @@
 :root {
   color-scheme: light;
-  --color-bg: #f5f6f8;
-  --color-surface: #ffffff;
+  --color-bg: #eeeee8;
+  --color-surface: #fafaf6;
   --color-surface-hover: #eef1f5;
-  --color-border: #dce1e8;
-  --color-text: #202631;
-  --color-muted: #596579;
-  --color-accent: #245dcc;
+  --color-border: #dcded5;
+  --color-text: #303c36;
+  --color-muted: #6d786f;
+  --color-accent: #356855;
   --color-accent-text: #ffffff;
-  --color-selected: #eaf0ff;
+  --color-selected: #e0e9df;
   --color-danger: #b42318;
   --color-success: #177245;
-  --color-focus: #245dcc;
+  --color-focus: #356855;
+  --color-paper: #fffef9;
+  --color-paper-line: #e9e9df;
+  --color-decor: #94aa8e;
+  --color-dock: #fafbf7;
+  --color-dock-note: #e7e9d9;
+  --color-dock-task: #dce9df;
+  --color-dock-file: #eae0ce;
+  --shadow-paper: 0 12px 30px #394b3510;
+  --shadow-dock: 0 10px 35px #34403216;
   --font-ui: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
   --font-size-body: 14px;
   --radius-control: 6px;
@@ -26,16 +35,23 @@
 }
 [data-theme='dark'] {
   color-scheme: dark;
-  --color-bg: #171a20;
-  --color-surface: #20252e;
+  --color-bg: #202723;
+  --color-surface: #2a322c;
   --color-surface-hover: #2b3340;
-  --color-border: #3d4756;
+  --color-border: #465048;
   --color-text: #edf0f5;
   --color-muted: #abb6c7;
-  --color-accent: #99b9ff;
-  --color-accent-text: #14264b;
-  --color-selected: #293b60;
+  --color-accent: #b3ceb9;
+  --color-accent-text: #223d30;
+  --color-selected: #3a4d3e;
   --color-danger: #ffaca4;
   --color-success: #85d6ad;
-  --color-focus: #99b9ff;
+  --color-focus: #b3ceb9;
+  --color-paper: #303831;
+  --color-paper-line: #454e43;
+  --color-decor: #78916f;
+  --color-dock: #2a352d;
+  --color-dock-note: #4a4b39;
+  --color-dock-task: #3d5747;
+  --color-dock-file: #594e3b;
 }
