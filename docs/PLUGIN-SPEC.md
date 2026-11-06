@@ -1,5 +1,7 @@
 # 插件协议 v0.1
 
+以下为早期规划。当前 API 1 的包格式、真实 SDK 和已实现边界以 [PLUGIN-RUNTIME-V1.md](PLUGIN-RUNTIME-V1.md) 为准，安装包已采用 `.wbplugin` JSON 容器而非 ZIP。
+
 ## 安装包
 
 第一版采用包含 manifest.json、界面静态资源和可选后台入口的 ZIP 包。运行时安装无需重新构建主程序；第一版允许安装后重启插件宿主，不承诺热更新。

@@ -1,0 +1,5 @@
+const fs=require('node:fs'),path=require('node:path');
+const {validatePackage}=require('../electron/plugin-registry.cjs');
+const root=path.resolve(__dirname,'..');
+fs.mkdirSync(path.join(root,'bundled-plugins'),{recursive:true});fs.mkdirSync(path.join(root,'plugin-packages'),{recursive:true});
+for(const name of ['files','text','images','logs']){const dir=path.join(root,'plugins',name);const manifest=JSON.parse(fs.readFileSync(path.join(dir,'manifest.json'),'utf8'));const files={};for(const file of fs.readdirSync(dir).filter(f=>f!=='manifest.json'))files[file]=fs.readFileSync(path.join(dir,file),'utf8');files['tokens.css']=fs.readFileSync(path.join(root,'design/tokens.css'),'utf8');const pkg={manifest,files};validatePackage(pkg);const body=JSON.stringify(pkg);fs.writeFileSync(path.join(root,'plugin-packages',manifest.id+'-'+manifest.version+'.wbplugin'),body);if(name==='files'||name==='text')fs.writeFileSync(path.join(root,'bundled-plugins',manifest.id+'.wbplugin'),body);console.log(manifest.id,Buffer.byteLength(body),'bytes');}

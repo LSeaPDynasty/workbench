@@ -1,0 +1,1 @@
+{"id":"log-viewer","name":"日志查看器","version":"1.0.0","apiVersion":1,"entry":"index.html","permissions":["file.receive"],"fileTypes":[".log",".txt",".out",".jsonl",".ndjson"]}

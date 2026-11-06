@@ -1,0 +1,6 @@
+const fs=require('node:fs'),path=require('node:path'),{createRequire}=require('node:module');
+const root=path.resolve(__dirname,'..');const asarDir=fs.readdirSync(path.join(root,'node_modules/.pnpm')).find(x=>x.startsWith('@electron+asar@'));const asar=require(path.join(root,'node_modules/.pnpm',asarDir,'node_modules/@electron/asar'));
+const output=process.argv[2]||'release-0.2.0/win-unpacked';const archive=path.resolve(root,output,'resources/app.asar');
+function walk(dir){return fs.readdirSync(path.join(root,dir),{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):[path.join(dir,e.name)]);}
+const source=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));const packed=JSON.parse(asar.extractFile(archive,'package.json'));for(const key of ['name','version','main'])if(packed[key]!==source[key])throw Error('Package metadata mismatch: '+key);
+const files=[...walk('dist'),...walk('electron'),...walk('bundled-plugins')];for(const file of files){if(!asar.extractFile(archive,file).equals(fs.readFileSync(path.join(root,file))))throw Error('Packaged file mismatch: '+file);}console.log('PASS: '+files.length+' packaged files match current source/build; version '+packed.version+'; '+archive);
