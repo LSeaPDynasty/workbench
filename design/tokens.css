@@ -1,0 +1,41 @@
+:root {
+  color-scheme: light;
+  --color-bg: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eef1f5;
+  --color-border: #dce1e8;
+  --color-text: #202631;
+  --color-muted: #596579;
+  --color-accent: #245dcc;
+  --color-accent-text: #ffffff;
+  --color-selected: #eaf0ff;
+  --color-danger: #b42318;
+  --color-success: #177245;
+  --color-focus: #245dcc;
+  --font-ui: 'Segoe UI Variable', 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
+  --font-size-body: 14px;
+  --radius-control: 6px;
+  --radius-panel: 8px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --sidebar-width: 208px;
+  --control-height: 32px;
+}
+[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #171a20;
+  --color-surface: #20252e;
+  --color-surface-hover: #2b3340;
+  --color-border: #3d4756;
+  --color-text: #edf0f5;
+  --color-muted: #abb6c7;
+  --color-accent: #99b9ff;
+  --color-accent-text: #14264b;
+  --color-selected: #293b60;
+  --color-danger: #ffaca4;
+  --color-success: #85d6ad;
+  --color-focus: #99b9ff;
+}

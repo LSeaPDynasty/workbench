@@ -1,0 +1,17 @@
+node_modules/
+dist/
+out/
+release/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*
+*.pfx
+*.p12
+userdata/
+.DS_Store
