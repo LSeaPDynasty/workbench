@@ -7,3 +7,5 @@
 Electron 解压分发已生成。当前沙箱中桌面启动验证遇到 GPU 子进程退出及 renderer launch-failed，不能宣称 EXE 已通过真实桌面运行验收。浏览器预览可用于审阅本次界面。正式插件隔离、SQLite、后台任务、MCP 及资源回收不在本轮实现范围。
 
 开发环境的 esbuild 配置打包受祖先目录访问限制，构建脚本采用 Vite native config loader。生产构建已通过；受限环境优先使用 `vite preview --configLoader native` 查看构建结果。
+
+0.1.1：重新生成 release-0.1.1/win-unpacked，逐文件比对 app.asar 内 HTML/JS/CSS 与当前 dist，完全一致；这是去除多余文案后的书桌界面。本轮未重复桌面启动测试。
