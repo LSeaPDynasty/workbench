@@ -1,6 +1,6 @@
 # Modular Workbench
 
-当前版本：0.3.1。已接入动态插件运行时、内置文件管理器和只读文本阅读器；日志、图片和 Git 为独立安装包。Windows 安装版会检查 GitHub Releases 中的新版本，应用管理中可独立检查并更新插件。使用方式与实际限制见 [插件运行时](docs/PLUGIN-RUNTIME-V1.md) 和 [发布说明](docs/RELEASES.md)。此前预览说明保留作为演进记录，以本节链接的实现状态为准。
+当前版本：0.3.2，Git 插件 1.0.1。已接入动态插件运行时、内置文件管理器和只读文本阅读器；日志、图片和 Git 为独立安装包。Windows 安装版会检查 GitHub Releases 中的新版本，插件管理中可搜索、筛选并独立更新插件。使用方式与实际限制见 [插件运行时](docs/PLUGIN-RUNTIME-V1.md)、[发布说明](docs/RELEASES.md) 和 [更新记录](docs/CHANGELOG.md)。此前预览说明保留作为演进记录，以本节链接的实现状态为准。
 
 面向 Windows 的本地优先、可扩展桌面工作台。项目暂定名，尚未连接远程仓库。
 
