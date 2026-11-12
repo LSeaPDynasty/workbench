@@ -23,6 +23,16 @@ async function updatePlugin(id){
  }finally{installing=false;}
 }
 const permissionLabels={'folders.read':'读取你选择的文件夹','file.receive':'读取交给此应用的文件','git.manage':'旧版扩展权限','native.backend':'运行本机后台代码（可访问此用户的文件、网络并启动程序；仅安装你信任的插件）','browser.open':'打开外部浏览器','network.proxy':'读取系统代理设置'};
+async function installOnline(id){
+ if(installing)throw Error('正在安装');installing=true;
+ try{
+  const {pkg,manifest}=await pluginUpdates().downloadNew(id);
+  const consent=await dialog.showMessageBox(win,{type:'question',buttons:['取消','安装'],defaultId:0,cancelId:0,message:manifest.name+' '+manifest.version,detail:manifest.permissions.map(p=>permissionLabels[p]).join('\n')||'无额外权限'});
+  if(consent.response!==1)return registry.list();
+  if(registry.items.has(id))throw Error('插件已安装，请刷新列表');
+  await registry.install(pkg);return registry.list();
+ }finally{installing=false;}
+}
 const hostURL=pathToFileURL(path.join(__dirname,'../dist/index.html')).href;
 function files(method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(Error('文件操作超时'));},15000);pending.set(id,{resolve,reject,timer});worker.postMessage({id,method,args});});}
 function result(fn){return async(...args)=>{try{return {ok:true,data:await fn(...args)};}catch(e){return {ok:false,error:e.message};}};}
@@ -83,6 +93,8 @@ let selectionGeneration=0;
 ipcMain.handle('host:request',result(async(e,method,args)=>{hostSender(e);if(!Array.isArray(args))throw Error('参数无效');switch(method){
  case 'list':return registry.list();case 'install':return install();
  case 'plugins.checkUpdates':return pluginUpdates().check();
+ case 'plugins.catalog':return pluginUpdates().catalog();
+ case 'plugins.installOnline':return installOnline(args[0]);
  case 'plugins.update':return updatePlugin(args[0]);
  case 'enable':case 'remove':{const [id,enabled]=args;if(typeof id!=='string')throw Error('参数无效');if(method==='enable')await registry.setEnabled(id,enabled);else {const consent=await dialog.showMessageBox(win,{type:'question',buttons:['取消','卸载'],defaultId:0,cancelId:0,message:'卸载此插件？',detail:'保留文件夹配置，不删除原文件。'});if(consent.response!==1)return registry.list();await registry.remove(id);}close(id);await files('revokePlugin',id);return registry.list();}
  case 'show':{const [id,rect]=args;const checked=bounds(rect),generation=++selectionGeneration;const view=await show(id,checked);if(generation!==selectionGeneration)return;view.setBounds(checked);view.setVisible(true);active=id;view.webContents.send('plugin:theme',theme);return;}
