@@ -1,5 +1,7 @@
 # Modular Workbench
 
+新增独立插件 **影音库 1.0.0**：选择本地音乐/视频文件夹，支持封面、搜索、收藏、字幕、播放进度及手动开启局域网共享。安装 `local-media-1.0.0.wbplugin` 即可，主体保持 0.5.0。使用方式与格式限制见 [影音库](docs/MEDIA-PLUGIN.md)。
+
 当前版本：0.5.0，Git 插件 2.0.0。主体提供通用的页面与本机后台运行时；Git 命令、GitHub 登录、账号和仓库资料均由 Git 插件自己的后台进程处理，随独立 `.wbplugin` 发布。主体无需安装 Git 插件即可运行。使用方式及权限边界见 [插件运行时](docs/PLUGIN-RUNTIME-V1.md)、[后台协议](docs/PLUGIN-CAPABILITIES.md) 和 [更新记录](docs/CHANGELOG.md)。
 
 面向 Windows 的本地优先、可扩展桌面工作台。项目暂定名，尚未连接远程仓库。
