@@ -24,7 +24,15 @@ async function updatePlugin(id){
 }
 const hostURL=pathToFileURL(path.join(__dirname,'../dist/index.html')).href;
 function files(method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(Error('文件操作超时'));},15000);pending.set(id,{resolve,reject,timer});worker.postMessage({id,method,args});});}
-function git(cwd,method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timeout=method==='githubLogin'?305000:35000;const timer=setTimeout(()=>{gitPending.delete(id);reject(Error('Git 操作超时'));},timeout);gitPending.set(id,{resolve,reject,timer});gitWorker.postMessage({id,cwd,method,args});});}
+function git(cwd,method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timeout=['authenticatedClone','clone'].includes(method)?140000:method==='githubGet'?50000:35000;const timer=setTimeout(()=>{gitPending.delete(id);reject(Error('Git 操作超时'));},timeout);gitPending.set(id,{resolve,reject,timer});gitWorker.postMessage({id,cwd,method,args});});}
+async function githubEnvironment(){let proxy='';try{proxy=await session.defaultSession.resolveProxy('https://github.com');}catch{}const target=proxy.split(';').map(p=>p.trim()).find(p=>/^PROXY [\w.\[\]:-]+$/.test(p));const env={...process.env};if(target){env.HTTPS_PROXY='http://'+target.slice(6);env.HTTP_PROXY=env.HTTPS_PROXY;}return env;}
+async function cloneRepository(id,rootId,remote,folder,accountId){
+ requirePermission(id,'folders.read');remote=cleanRemote(remote);folder=cleanFolder(folder);const account=accountId?gitService.getAccount(id,accountId):null;
+ const cwd=await files('resolve',id,rootId,'');
+ if(account?.provider==='github'&&account.githubLogin&&remote.startsWith('https://github.com/'))await git(cwd,'authenticatedClone',account.githubLogin,remote,folder,await githubEnvironment());
+ else await git(cwd,'clone',remote,folder);
+ registry.get(id);return gitService.addRepo(id,rootId,folder,accountId);
+}
 function result(fn){return async(...args)=>{try{return {ok:true,data:await fn(...args)};}catch(e){return {ok:false,error:e.message};}};}
 function hostSender(e){if(e.sender!==win.webContents||e.senderFrame!==win.webContents.mainFrame||e.senderFrame.url!==hostURL)throw Error('禁止访问');}
 function pluginSender(e){for(const [id,v]of views){if(e.sender===v.webContents&&e.senderFrame===v.webContents.mainFrame&&new URL(e.senderFrame.url).hostname===id){registry.get(id);return id;}}throw Error('插件身份无效');}
@@ -104,6 +112,9 @@ ipcMain.handle('plugin:request',result(async(e,method,args)=>{const id=pluginSen
  case 'git.github.login':throw Error('请更新 Git 插件后使用浏览器登录');
  case 'git.github.start':{if(active!==id)throw Error('请先打开此应用');const account=gitService.getAccount(id,args[0]);if(account.provider!=='github')throw Error('请选择 GitHub 账号');let proxy='';try{proxy=await session.defaultSession.resolveProxy('https://github.com');}catch{}registry.get(id);if(active!==id)throw Error('请先打开此应用');const target=proxy.split(';').map(p=>p.trim()).find(p=>/^PROXY [\w.\[\]:-]+$/.test(p));const env={...process.env};if(target){env.HTTPS_PROXY='http://'+target.slice(6);env.HTTP_PROXY=env.HTTPS_PROXY;}return githubLogin.start(id,account.id,env);}
  case 'git.github.status':return githubLogin.status(id);
+ case 'git.github.request':{const account=gitService.getAccount(id,args[0]);if(account.provider!=='github'||!account.githubLogin)throw Error('请先登录此 GitHub 账号');const env=await githubEnvironment();registry.get(id);return git(app.getPath('userData'),'githubGet',account.githubLogin,args[1],env);}
+ case 'git.github.openPage':{const resource=args[0];if(active!==id||typeof resource!=='string'||resource.length>500||!/^\/?[A-Za-z0-9_.\/-]+$/.test(resource)||resource.startsWith('//')||resource.split('/').some(p=>p==='.'||p==='..'))throw Error('网页路径无效');await require('electron').shell.openExternal('https://github.com/'+resource.replace(/^\//,''));return;}
+ case 'git.repos.cloneToFolder':{requirePermission(id,'folders.read');if(active!==id)throw Error('请先打开此应用');const remote=cleanRemote(args[1]),folder=cleanFolder(args[2]);if(args[0])gitService.getAccount(id,args[0]);const picked=await dialog.showOpenDialog(win,{title:'选择克隆到的父文件夹',properties:['openDirectory']});if(picked.canceled)return null;registry.get(id);const real=await fs.realpath(picked.filePaths[0]),roots=await files('add',id,real),root=roots.find(r=>r.path.toLowerCase()===real.toLowerCase());if(!root)throw Error('文件夹授权失败');return cloneRepository(id,root.id,remote,folder,args[0]);}
  case 'git.github.cancel':return githubLogin.cancel(id);
  case 'git.github.open':{if(active!==id||githubLogin.status(id).phase!=='waiting')throw Error('当前没有待完成的登录');await require('electron').shell.openExternal('https://github.com/login/device');return;}
  case 'git.github.activate':{const account=gitService.getAccount(id,args[0]);if(account.provider!=='github'||!account.githubLogin)throw Error('请先通过浏览器登录 GitHub');return activateGitHub(id,account.id);}
@@ -111,7 +122,7 @@ ipcMain.handle('plugin:request',result(async(e,method,args)=>{const id=pluginSen
  case 'git.repos.remove':return gitService.removeRepo(id,args[0]);
  case 'git.repos.register':{const cwd=await files('resolve',id,args[0],'');await git(cwd,'inspect');return gitService.addRepo(id,args[0],'',args[1]);}
  case 'git.repos.init':{const cwd=await files('resolve',id,args[0],'');await git(cwd,'init');return gitService.addRepo(id,args[0],'',args[1]);}
- case 'git.repos.clone':{const rootId=args[0],remote=cleanRemote(args[1]),folder=cleanFolder(args[2]),accountId=args[3];const cwd=await files('resolve',id,rootId,'');await git(cwd,'clone',remote,folder);return gitService.addRepo(id,rootId,folder,accountId);}
+ case 'git.repos.clone':return cloneRepository(id,args[0],args[1],args[2],args[3]);
  case 'git.status':{const {cwd}=await repoPath(id,args[0]);return git(cwd,'inspect');}
  case 'git.log':{const {cwd}=await repoPath(id,args[0]);return git(cwd,'log',args[1]);}
  case 'git.diff':{const {cwd}=await repoPath(id,args[0]);return git(cwd,'diff');}

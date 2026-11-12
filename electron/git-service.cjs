@@ -15,7 +15,7 @@ function cleanRelative(value){
 }
 function cleanFolder(value){
   const result=cleanRelative(value);
-  if(!result||result.includes('/'))throw Error('仓库名称无效');
+  if(!result||result.includes('/')||/[:<>"|?*]/.test(result)||/[. ]$/.test(result)||/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(result))throw Error('仓库名称无效');
   return result;
 }
 function cleanRemote(value){
