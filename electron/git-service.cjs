@@ -30,7 +30,7 @@ class GitService {
     let data={accounts:[],repos:[]};
     try{data=JSON.parse(await fs.readFile(this.config,'utf8'));}catch(e){if(e.code!=='ENOENT')throw Error('Git 配置损坏');}
     if(!Array.isArray(data.accounts)||!Array.isArray(data.repos))throw Error('Git 配置损坏');
-    this.accounts=data.accounts.filter(a=>a&&typeof a.id==='string'&&typeof a.owner==='string'&&typeof a.name==='string'&&PROVIDERS.has(a.provider)&&AUTH_METHODS.has(a.auth));
+    this.accounts=data.accounts.filter(a=>a&&typeof a.id==='string'&&typeof a.owner==='string'&&typeof a.name==='string'&&PROVIDERS.has(a.provider)&&AUTH_METHODS.has(a.auth)&&(!a.githubLogin||typeof a.githubLogin==='string'));
     this.repos=data.repos.filter(r=>r&&typeof r.id==='string'&&typeof r.owner==='string'&&typeof r.rootId==='string'&&typeof r.relative==='string');
   }
   serial(fn){const next=this.tail.then(fn);this.tail=next.catch(()=>{});return next;}
@@ -39,11 +39,14 @@ class GitService {
   listRepos(owner){return this.repos.filter(r=>r.owner===owner).map(r=>({...r}));}
   saveAccount(owner,input){return this.serial(async()=>{
     if(typeof owner!=='string')throw Error('插件身份无效');
-    const account={id:typeof input?.id==='string'&&this.accounts.some(a=>a.id===input.id&&a.owner===owner)?input.id:randomUUID(),owner,name:cleanText(input?.name,'账号名称',60),provider:input?.provider,server:cleanText(input?.server,'服务器地址',260),auth:input?.auth};
+    const existing=typeof input?.id==='string'?this.accounts.find(a=>a.id===input.id&&a.owner===owner):null;
+    const account={id:existing?.id||randomUUID(),owner,name:cleanText(input?.name,'账号名称',60),provider:input?.provider,server:cleanText(input?.server,'服务器地址',260),auth:input?.auth,githubLogin:input?.provider==='github'?existing?.githubLogin||null:null};
     if(!PROVIDERS.has(account.provider)||!AUTH_METHODS.has(account.auth))throw Error('账号类型无效');
     const index=this.accounts.findIndex(a=>a.id===account.id);if(index<0)this.accounts.push(account);else this.accounts[index]=account;await this.save();return account;
   });}
   removeAccount(owner,id){return this.serial(async()=>{if(typeof id!=='string'||this.repos.some(r=>r.owner===owner&&r.accountId===id))throw Error('账号仍被仓库使用');const before=this.accounts.length;this.accounts=this.accounts.filter(a=>!(a.owner===owner&&a.id===id));if(before===this.accounts.length)throw Error('账号不存在');await this.save();});}
+  getAccount(owner,id){const account=this.accounts.find(a=>a.owner===owner&&a.id===id);if(!account)throw Error('账号不存在');return {...account};}
+  setGithubLogin(owner,id,login){return this.serial(async()=>{if(typeof login!=='string'||!/^[A-Za-z0-9-]{1,39}$/.test(login))throw Error('GitHub 用户名无效');const account=this.accounts.find(a=>a.owner===owner&&a.id===id&&a.provider==='github');if(!account)throw Error('GitHub 账号不存在');account.githubLogin=login;await this.save();return {...account};});}
   addRepo(owner,rootId,relative,accountId){return this.serial(async()=>{
     if(typeof owner!=='string'||typeof rootId!=='string')throw Error('仓库信息无效');relative=cleanRelative(relative);
     if(accountId!==null&&accountId!==undefined&&!this.accounts.some(a=>a.owner===owner&&a.id===accountId))throw Error('账号不存在');

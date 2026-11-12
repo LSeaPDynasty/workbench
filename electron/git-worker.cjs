@@ -9,10 +9,11 @@ function relativeList(items){
 }
 function branch(value){if(typeof value!=='string'||!value||value.length>160||/[\s~^:?*\[\\]/.test(value)||value.includes('..'))throw Error('分支无效');return value;}
 function remoteName(value){if(typeof value!=='string'||!/^[-A-Za-z0-9_.]{1,64}$/.test(value))throw Error('远端名称无效');return value;}
-async function git(cwd,args){
-  const {stdout,stderr}=await run('git',args,{cwd,windowsHide:true,timeout:30000,maxBuffer:1024*1024,env:{...process.env,GIT_TERMINAL_PROMPT:'0',GIT_PAGER:'cat'}});
+async function command(binary,cwd,args,timeout=30000){
+  const {stdout,stderr}=await run(binary,args,{cwd,windowsHide:true,timeout,maxBuffer:1024*1024,env:{...process.env,GIT_TERMINAL_PROMPT:'0',GIT_PAGER:'cat'}});
   return {stdout:stdout||'',stderr:stderr||''};
 }
+const git=(cwd,args)=>command('git',cwd,args);
 async function action(cwd,method,args){
   if(typeof cwd!=='string'||!path.isAbsolute(cwd))throw Error('仓库路径无效');
   switch(method){
@@ -26,6 +27,8 @@ async function action(cwd,method,args){
     case 'push': return (await git(cwd,['push',remoteName(args?.[0]),branch(args?.[1])])).stdout;
     case 'pull': return (await git(cwd,['pull','--ff-only',remoteName(args?.[0]),branch(args?.[1])])).stdout;
     case 'clone': {const remote=args?.[0],folder=args?.[1];if(typeof remote!=='string'||typeof folder!=='string')throw Error('克隆参数无效');return (await git(cwd,['clone',remote,folder])).stdout;}
+    case 'githubLogin': {await command('gh',cwd,['auth','login','--hostname','github.com','--web','--git-protocol','https'],300000);return (await command('gh',cwd,['api','user','--hostname','github.com','--jq','.login'])).stdout.trim();}
+    case 'githubActivate': {const user=args?.[0];if(typeof user!=='string'||!/^[A-Za-z0-9-]{1,39}$/.test(user))throw Error('GitHub 用户名无效');await command('gh',cwd,['auth','switch','--hostname','github.com','--user',user]);return (await command('gh',cwd,['auth','setup-git','--hostname','github.com'])).stdout;}
     default:throw Error('未知 Git 操作');
   }
 }

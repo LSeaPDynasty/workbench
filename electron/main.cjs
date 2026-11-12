@@ -10,12 +10,13 @@ let win,registry,worker,gitWorker,gitService,theme='light',active=null,sequence=
 const views=new Map(),pending=new Map(),gitPending=new Map(),lastOpened=new Map();
 const hostURL=pathToFileURL(path.join(__dirname,'../dist/index.html')).href;
 function files(method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(Error('文件操作超时'));},15000);pending.set(id,{resolve,reject,timer});worker.postMessage({id,method,args});});}
-function git(cwd,method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{gitPending.delete(id);reject(Error('Git 操作超时'));},35000);gitPending.set(id,{resolve,reject,timer});gitWorker.postMessage({id,cwd,method,args});});}
+function git(cwd,method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timeout=method==='githubLogin'?305000:35000;const timer=setTimeout(()=>{gitPending.delete(id);reject(Error('Git 操作超时'));},timeout);gitPending.set(id,{resolve,reject,timer});gitWorker.postMessage({id,cwd,method,args});});}
 function result(fn){return async(...args)=>{try{return {ok:true,data:await fn(...args)};}catch(e){return {ok:false,error:e.message};}};}
 function hostSender(e){if(e.sender!==win.webContents||e.senderFrame!==win.webContents.mainFrame||e.senderFrame.url!==hostURL)throw Error('禁止访问');}
 function pluginSender(e){for(const [id,v]of views){if(e.sender===v.webContents&&e.senderFrame===v.webContents.mainFrame&&new URL(e.senderFrame.url).hostname===id){registry.get(id);return id;}}throw Error('插件身份无效');}
 function requirePermission(id,permission){if(!registry.get(id).permissions.includes(permission))throw Error('未授予此权限');}
 async function repoPath(id,repoId){const repo=gitService.getRepo(id,repoId);return {repo,cwd:await files('resolve',id,repo.rootId,repo.relative)};}
+async function activateGitHub(owner,accountId){if(!accountId)return;const account=gitService.getAccount(owner,accountId);if(account.provider==='github'&&account.githubLogin)await git(app.getPath('userData'),'githubActivate',account.githubLogin);}
 function bounds(rect){if(!rect||!['x','y','width','height'].every(k=>Number.isFinite(rect[k])))throw Error('窗口尺寸无效');const [width,height]=win.getContentSize();const x=Math.min(Math.max(0,Math.round(rect.x)),width),y=Math.min(Math.max(0,Math.round(rect.y)),height);return {x,y,width:Math.min(Math.max(0,Math.round(rect.width)),width-x),height:Math.min(Math.max(0,Math.round(rect.height)),height-y)};}
 function hide(){for(const v of views.values())v.setVisible(false);active=null;}
 function close(id){const v=views.get(id);if(v){views.delete(id);win.contentView.removeChildView(v);v.webContents.close();}lastOpened.delete(id);if(active===id)active=null;}
@@ -61,6 +62,8 @@ ipcMain.handle('plugin:request',result(async(e,method,args)=>{const id=pluginSen
  case 'git.accounts.list':return gitService.listAccounts(id);
  case 'git.accounts.save':return gitService.saveAccount(id,args[0]);
  case 'git.accounts.remove':return gitService.removeAccount(id,args[0]);
+ case 'git.github.login':{const account=gitService.getAccount(id,args[0]);if(account.provider!=='github')throw Error('请选择 GitHub 账号');const login=await git(app.getPath('userData'),'githubLogin');return gitService.setGithubLogin(id,account.id,login);}
+ case 'git.github.activate':{const account=gitService.getAccount(id,args[0]);if(account.provider!=='github'||!account.githubLogin)throw Error('请先通过浏览器登录 GitHub');return activateGitHub(id,account.id);}
  case 'git.repos.list':return gitService.listRepos(id);
  case 'git.repos.remove':return gitService.removeRepo(id,args[0]);
  case 'git.repos.register':{const cwd=await files('resolve',id,args[0],'');await git(cwd,'inspect');return gitService.addRepo(id,args[0],'',args[1]);}
@@ -72,8 +75,8 @@ ipcMain.handle('plugin:request',result(async(e,method,args)=>{const id=pluginSen
  case 'git.stage':{const {cwd}=await repoPath(id,args[0]);return git(cwd,'stage',args[1]);}
  case 'git.unstage':{const {cwd}=await repoPath(id,args[0]);return git(cwd,'unstage',args[1]);}
  case 'git.commit':{const {cwd}=await repoPath(id,args[0]);return git(cwd,'commit',args[1]);}
- case 'git.push':{const {cwd}=await repoPath(id,args[0]);return git(cwd,'push',args[1],args[2]);}
- case 'git.pull':{const {cwd}=await repoPath(id,args[0]);return git(cwd,'pull',args[1],args[2]);}
+ case 'git.push':{const {repo,cwd}=await repoPath(id,args[0]);await activateGitHub(id,repo.accountId);return git(cwd,'push',args[1],args[2]);}
+ case 'git.pull':{const {repo,cwd}=await repoPath(id,args[0]);await activateGitHub(id,repo.accountId);return git(cwd,'pull',args[1],args[2]);}
  default:throw Error('未知操作');
  }
 }));
