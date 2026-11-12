@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {randomUUID} = require('node:crypto');
-const PERMISSIONS = new Set(['folders.read', 'file.receive']);
+const PERMISSIONS = new Set(['folders.read', 'file.receive', 'git.manage']);
 function safeRelative(name) {
   if (typeof name !== 'string' || name.length > 240 || name.includes('\\') || name.includes(':') || name.includes('\0') || name.startsWith('/') || name.split('/').some(x => !x || x === '.' || x === '..' || /[. ]$/.test(x) || /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.|$)/i.test(x))) throw Error('无效的插件路径');
   return name;

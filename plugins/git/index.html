@@ -1,0 +1,25 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><link rel="stylesheet" href="tokens.css"><link rel="stylesheet" href="style.css"></head><body>
+<header><strong>Git</strong><span id="repo-title">选择仓库</span><button id="refresh">刷新</button></header>
+<div class="layout">
+  <aside>
+    <section><div class="section-title"><span>账号</span><button id="add-account" aria-label="添加账号">＋</button></div><div id="accounts"></div></section>
+    <section><div class="section-title"><span>仓库</span><button id="add-repo" aria-label="添加仓库">＋</button></div><div id="repos"></div></section>
+  </aside>
+  <main>
+    <div id="setup" class="setup" hidden>
+      <div class="setup-row"><select id="root"></select><select id="account"></select></div>
+      <div class="setup-row"><button id="choose-root">选择文件夹</button><button id="register">已有仓库</button><button id="init">初始化仓库</button></div>
+      <details><summary>克隆仓库</summary><div class="clone"><input id="clone-remote" placeholder="远端地址"><input id="clone-folder" placeholder="文件夹名称"><button id="clone">克隆</button></div></details>
+    </div>
+    <div id="workspace" hidden>
+      <div class="actions"><span id="branch"></span><select id="remote"></select><input id="push-branch" aria-label="分支" placeholder="分支"><button id="pull">拉取</button><button id="push">推送</button><button id="remove-repo">移除</button></div>
+      <section class="changes"><div class="section-title"><span>改动</span><span id="change-count"></span><span class="grow"></span><button id="stage">暂存</button><button id="unstage">取消暂存</button></div><div id="changes"></div></section>
+      <section class="commit"><textarea id="message" placeholder="提交说明"></textarea><button id="commit">提交</button></section>
+      <details class="details"><summary>提交记录</summary><pre id="log"></pre></details>
+      <details class="details"><summary>差异统计</summary><pre id="diff"></pre></details>
+    </div>
+    <div id="error" role="status"></div><pre id="output"></pre>
+  </main>
+</div>
+<dialog id="account-dialog"><form method="dialog"><h2>账号</h2><label>名称<input id="account-name" maxlength="60" required></label><label>类型<select id="provider"><option value="github">GitHub</option><option value="gitlab">GitLab</option><option value="self-hosted">私服</option></select></label><label>服务器<input id="server" placeholder="https://github.com" maxlength="260" required></label><label>认证<select id="auth"><option value="system">系统凭据</option><option value="ssh">SSH</option></select></label><menu><button value="cancel">取消</button><button id="delete-account" value="delete" hidden>删除</button><button id="save-account" value="save">保存</button></menu></form></dialog>
+<script src="app.js"></script></body></html>

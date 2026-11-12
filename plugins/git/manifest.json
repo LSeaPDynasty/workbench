@@ -1,0 +1,8 @@
+{
+  "id": "git-workbench",
+  "name": "Git",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "index.html",
+  "permissions": ["folders.read", "git.manage"]
+}
