@@ -1,4 +1,4 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><link rel="stylesheet" href="tokens.css"><link rel="stylesheet" href="style.css"></head><body>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><link rel="stylesheet" href="tokens.css"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="login.css"></head><body>
 <header><strong>Git</strong><span id="repo-title">选择仓库</span><button id="refresh">刷新</button></header>
 <div class="layout">
   <aside>
@@ -6,6 +6,7 @@
     <section><div class="section-title"><span>仓库</span><button id="add-repo" aria-label="添加仓库">＋</button></div><div id="repos"></div></section>
   </aside>
   <main>
+    <section id="login-status" class="login-status" hidden aria-live="polite"><div><strong id="login-message"></strong><code id="login-code"></code></div><div><button id="login-open" hidden>打开授权页</button><button id="login-cancel" hidden>取消登录</button></div></section>
     <div id="setup" class="setup" hidden>
       <div class="setup-row"><select id="root"></select><select id="account"></select></div>
       <div class="setup-row"><button id="choose-root">选择文件夹</button><button id="register">已有仓库</button><button id="init">初始化仓库</button></div>

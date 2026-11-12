@@ -27,7 +27,6 @@ async function action(cwd,method,args){
     case 'push': return (await git(cwd,['push',remoteName(args?.[0]),branch(args?.[1])])).stdout;
     case 'pull': return (await git(cwd,['pull','--ff-only',remoteName(args?.[0]),branch(args?.[1])])).stdout;
     case 'clone': {const remote=args?.[0],folder=args?.[1];if(typeof remote!=='string'||typeof folder!=='string')throw Error('克隆参数无效');return (await git(cwd,['clone',remote,folder])).stdout;}
-    case 'githubLogin': {await command('gh',cwd,['auth','login','--hostname','github.com','--web','--git-protocol','https'],300000);return (await command('gh',cwd,['api','user','--hostname','github.com','--jq','.login'])).stdout.trim();}
     case 'githubActivate': {const user=args?.[0];if(typeof user!=='string'||!/^[A-Za-z0-9-]{1,39}$/.test(user))throw Error('GitHub 用户名无效');await command('gh',cwd,['auth','switch','--hostname','github.com','--user',user]);return (await command('gh',cwd,['auth','setup-git','--hostname','github.com'])).stdout;}
     default:throw Error('未知 Git 操作');
   }

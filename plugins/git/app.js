@@ -2,7 +2,7 @@ const api=window.workbench,$=id=>document.getElementById(id);let accounts=[],rep
 const error=value=>{$('error').textContent=value?.message||value||'';};
 function option(value,label){const node=document.createElement('option');node.value=value;node.textContent=label;return node;}
 function accountLabel(account){return account.name+' · '+(account.githubLogin||account.server);}
-function setBusy(value){for(const button of document.querySelectorAll('button'))button.disabled=value;}
+function setBusy(value){for(const button of document.querySelectorAll('button:not(#login-cancel):not(#login-open)'))button.disabled=value;}
 function showOutput(value){$('output').textContent=value||'';}
 function renderAccounts(){const node=$('accounts');node.replaceChildren();for(const account of accounts){const button=document.createElement('button');button.className='account';button.title=accountLabel(account);const dot=document.createElement('i');dot.className='dot';const text=document.createElement('span'),name=document.createElement('b'),detail=document.createElement('small');name.textContent=account.name;detail.textContent=account.server;text.append(name,detail);button.append(dot,text);button.onclick=()=>openAccount(account);node.append(button);}if(!accounts.length){const empty=document.createElement('p');empty.className='empty';empty.textContent='未添加账号';node.append(empty);}}
 function renderRepos(){const node=$('repos');node.replaceChildren();for(const repo of repos){const button=document.createElement('button');button.className='repo '+(current?.id===repo.id?'selected':'');const dot=document.createElement('i');dot.className='dot';const text=document.createElement('span'),name=document.createElement('b'),detail=document.createElement('small');name.textContent=repo.relative||roots.find(r=>r.id===repo.rootId)?.name||'仓库';detail.textContent=accounts.find(a=>a.id===repo.accountId)?.name||'未关联账号';text.append(name,detail);button.append(dot,text);button.onclick=()=>selectRepo(repo);node.append(button);}if(!repos.length){const empty=document.createElement('p');empty.className='empty';empty.textContent='未添加仓库';node.append(empty);}}
@@ -19,10 +19,29 @@ function updateLoginButton(){$('github-login').hidden=$('provider').value!=='git
 function openAccount(account){editing=account||null;$('account-dialog').returnValue='';$('account-name').value=account?.name||'';$('provider').value=account?.provider||'github';$('server').value=account?.server||'https://github.com';$('auth').value=account?.auth||'system';$('delete-account').hidden=!account;updateLoginButton();$('account-dialog').showModal();}
 async function sync(){[accounts,repos,roots]=await Promise.all([api.git.accounts.list(),api.git.repos.list(),api.folders.list()]);renderAccounts();renderRepos();renderSetup();}
 $('add-account').onclick=()=>openAccount(null);$('add-repo').onclick=showSetup;$('refresh').onclick=refresh;
-$('provider').onchange=updateLoginButton;$('account-dialog').addEventListener('close',async()=>{const value=$('account-dialog').returnValue;if(value==='save'||value==='login'){try{const account=await api.git.accounts.save({id:editing?.id,name:$('account-name').value,provider:$('provider').value,server:$('server').value,auth:$('auth').value});await sync();if(value==='login'){setBusy(true);try{const signedIn=await api.git.github.login(account.id);showOutput('GitHub：'+signedIn.githubLogin);await sync();}finally{setBusy(false);}}}catch(e){error(e);}}if(value==='delete'&&editing){try{await api.git.accounts.remove(editing.id);await sync();}catch(e){error(e);}}});
+$('provider').onchange=updateLoginButton;$('account-dialog').addEventListener('close',async()=>{const value=$('account-dialog').returnValue;if(value==='save'||value==='login'){try{const account=await api.git.accounts.save({id:editing?.id,name:$('account-name').value,provider:$('provider').value,server:$('server').value,auth:$('auth').value});await sync();if(value==='login')await beginLogin(account.id);}catch(e){error(e);}}if(value==='delete'&&editing){try{await api.git.accounts.remove(editing.id);await sync();}catch(e){error(e);}}});
+let loginState={phase:'idle'},loginStarting=false,loginPoll=null,loginGeneration=0;
+function renderLogin(state){
+ const was=loginState.phase;loginState=state;const pending=['starting','waiting','finishing'].includes(state.phase);
+ $('login-status').hidden=state.phase==='idle';
+ $('login-message').textContent=state.phase==='starting'?'正在连接 GitHub…':state.phase==='waiting'?'在浏览器中输入授权码':state.phase==='finishing'?'正在保存登录结果…':state.phase==='success'?'已登录 GitHub：'+state.login:state.message||'登录失败';
+ $('login-code').textContent=state.code||'';$('login-open').hidden=state.phase!=='waiting';$('login-cancel').hidden=!pending;$('login-cancel').disabled=state.phase==='finishing';
+ if(state.phase==='success'&&was!=='success')void sync().catch(error);
+ return pending;
+}
+function scheduleLoginPoll(){clearTimeout(loginPoll);const generation=loginGeneration;loginPoll=setTimeout(async()=>{try{const state=await api.git.github.status();if(generation!==loginGeneration)return;if(renderLogin(state))scheduleLoginPoll();}catch(e){if(generation===loginGeneration){renderLogin({phase:'error',message:e.message});}}},750);}
+async function beginLogin(accountId){
+ if(!api.git.github.start){error('请先将主体更新到 0.3.3，再使用浏览器登录');return;}
+ if(loginStarting||['starting','waiting','finishing'].includes(loginState.phase)){error('已有登录正在进行，可先取消');return;}
+ loginStarting=true;const generation=++loginGeneration;renderLogin({phase:'starting'});
+ try{const state=await api.git.github.start(accountId);if(generation!==loginGeneration){await api.git.github.cancel();return;}if(renderLogin(state))scheduleLoginPoll();}catch(e){if(generation===loginGeneration)renderLogin({phase:'error',message:e.message});}finally{loginStarting=false;}
+}
+$('login-cancel').onclick=async()=>{try{loginGeneration++;clearTimeout(loginPoll);renderLogin(await api.git.github.cancel());}catch(e){error(e);scheduleLoginPoll();}};
+$('login-open').onclick=()=>api.git.github.open().catch(error);
+window.addEventListener('pagehide',()=>{clearTimeout(loginPoll);});
 $('choose-root').onclick=async()=>{try{await api.folders.choose();await sync();}catch(e){error(e);}};
 $('register').onclick=async()=>{try{setBusy(true);const repo=await api.git.repos.register($('root').value,$('account').value||null);await sync();await selectRepo(repo);}catch(e){error(e);}finally{setBusy(false);}};
 $('init').onclick=async()=>{try{setBusy(true);const repo=await api.git.repos.init($('root').value,$('account').value||null);await sync();await selectRepo(repo);}catch(e){error(e);}finally{setBusy(false);}};
 $('clone').onclick=async()=>{try{setBusy(true);const repo=await api.git.repos.clone($('root').value,$('clone-remote').value,$('clone-folder').value,$('account').value||null);await sync();await selectRepo(repo);}catch(e){error(e);}finally{setBusy(false);}};
 $('stage').onclick=()=>operation(()=>api.git.stage(current.id,selectedFiles()));$('unstage').onclick=()=>operation(()=>api.git.unstage(current.id,selectedFiles()));$('commit').onclick=()=>operation(async()=>{const message=$('message').value;const result=await api.git.commit(current.id,message);$('message').value='';return result;});$('pull').onclick=()=>operation(()=>api.git.pull(current.id,$('remote').value,$('push-branch').value));$('push').onclick=()=>operation(()=>api.git.push(current.id,$('remote').value,$('push-branch').value));$('remove-repo').onclick=async()=>{if(!current)return;try{await api.git.repos.remove(current.id);await sync();showSetup();}catch(e){error(e);}};
-api.onTheme(theme=>document.documentElement.dataset.theme=theme);api.initial().then(async initial=>{document.documentElement.dataset.theme=initial.theme;await sync();showSetup();}).catch(error);
+api.onTheme(theme=>document.documentElement.dataset.theme=theme);api.initial().then(async initial=>{document.documentElement.dataset.theme=initial.theme;await sync();showSetup();if(api.git.github.status){const state=await api.git.github.status();if(renderLogin(state))scheduleLoginPoll();}}).catch(error);

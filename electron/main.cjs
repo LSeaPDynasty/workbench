@@ -6,7 +6,7 @@ const {Worker}=require('node:worker_threads');
 const {Registry,validatePackage}=require('./plugin-registry.cjs');
 const {GitService,cleanFolder,cleanRemote}=require('./git-service.cjs');
 protocol.registerSchemesAsPrivileged([{scheme:'wb-plugin',privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
-let win,registry,worker,gitWorker,gitService,autoUpdater,theme='light',active=null,sequence=0,installing=false;
+let win,registry,worker,gitWorker,gitService,autoUpdater,githubLogin,theme='light',active=null,sequence=0,installing=false;
 const views=new Map(),pending=new Map(),gitPending=new Map(),lastOpened=new Map();
 let updateStatus={phase:'unsupported',message:'仅安装版支持更新'},pluginUpdater;
 function pluginUpdates(){if(!pluginUpdater){const {PluginUpdates}=require('./plugin-updates.cjs');pluginUpdater=new PluginUpdates(registry,(...args)=>require('electron').net.fetch(...args),require('./update-auth.cjs').privateFeed);}return pluginUpdater;}
@@ -53,7 +53,7 @@ function setupUpdates(){
 }
 function bounds(rect){if(!rect||!['x','y','width','height'].every(k=>Number.isFinite(rect[k])))throw Error('窗口尺寸无效');const [width,height]=win.getContentSize();const x=Math.min(Math.max(0,Math.round(rect.x)),width),y=Math.min(Math.max(0,Math.round(rect.y)),height);return {x,y,width:Math.min(Math.max(0,Math.round(rect.width)),width-x),height:Math.min(Math.max(0,Math.round(rect.height)),height-y)};}
 function hide(){for(const v of views.values())v.setVisible(false);active=null;}
-function close(id){const v=views.get(id);if(v){views.delete(id);win.contentView.removeChildView(v);v.webContents.close();}lastOpened.delete(id);if(active===id)active=null;}
+function close(id){githubLogin?.close(id);const v=views.get(id);if(v){views.delete(id);win.contentView.removeChildView(v);v.webContents.close();}lastOpened.delete(id);if(active===id)active=null;}
 async function show(id,rect){const manifest=registry.get(id);hide();let view=views.get(id);if(!view){
  const ses=session.fromPartition('plugin:'+id);
  if(ses.protocol.isProtocolHandled && await ses.protocol.isProtocolHandled('wb-plugin'))ses.protocol.unhandle('wb-plugin');
@@ -101,7 +101,11 @@ ipcMain.handle('plugin:request',result(async(e,method,args)=>{const id=pluginSen
  case 'git.accounts.list':return gitService.listAccounts(id);
  case 'git.accounts.save':return gitService.saveAccount(id,args[0]);
  case 'git.accounts.remove':return gitService.removeAccount(id,args[0]);
- case 'git.github.login':{const account=gitService.getAccount(id,args[0]);if(account.provider!=='github')throw Error('请选择 GitHub 账号');const login=await git(app.getPath('userData'),'githubLogin');return gitService.setGithubLogin(id,account.id,login);}
+ case 'git.github.login':throw Error('请更新 Git 插件后使用浏览器登录');
+ case 'git.github.start':{if(active!==id)throw Error('请先打开此应用');const account=gitService.getAccount(id,args[0]);if(account.provider!=='github')throw Error('请选择 GitHub 账号');let proxy='';try{proxy=await session.defaultSession.resolveProxy('https://github.com');}catch{}registry.get(id);if(active!==id)throw Error('请先打开此应用');const target=proxy.split(';').map(p=>p.trim()).find(p=>/^PROXY [\w.\[\]:-]+$/.test(p));const env={...process.env};if(target){env.HTTPS_PROXY='http://'+target.slice(6);env.HTTP_PROXY=env.HTTPS_PROXY;}return githubLogin.start(id,account.id,env);}
+ case 'git.github.status':return githubLogin.status(id);
+ case 'git.github.cancel':return githubLogin.cancel(id);
+ case 'git.github.open':{if(active!==id||githubLogin.status(id).phase!=='waiting')throw Error('当前没有待完成的登录');await require('electron').shell.openExternal('https://github.com/login/device');return;}
  case 'git.github.activate':{const account=gitService.getAccount(id,args[0]);if(account.provider!=='github'||!account.githubLogin)throw Error('请先通过浏览器登录 GitHub');return activateGitHub(id,account.id);}
  case 'git.repos.list':return gitService.listRepos(id);
  case 'git.repos.remove':return gitService.removeRepo(id,args[0]);
@@ -121,6 +125,8 @@ ipcMain.handle('plugin:request',result(async(e,method,args)=>{const id=pluginSen
 }));
 app.whenReady().then(async()=>{registry=new Registry(path.join(app.getPath('userData'),'plugins-v1'));await registry.init();
  gitService=new GitService(path.join(app.getPath('userData'),'git-v1.json'));await gitService.init();
+ githubLogin=new (require('./github-login.cjs').GithubLogin)({save:(owner,account,login)=>gitService.setGithubLogin(owner,account,login),open:url=>require('electron').shell.openExternal(url)});
+ app.on('before-quit',()=>githubLogin.dispose());
  const builtin=path.join(app.getAppPath(),'bundled-plugins');for(const entry of await fs.readdir(builtin)){if(entry.endsWith('.wbplugin')){const pkg=JSON.parse(await fs.readFile(path.join(builtin,entry),'utf8'));if(!registry.items.has(pkg.manifest.id)&&!await fs.stat(path.join(app.getPath('userData'),'plugins-seeded')).then(()=>true,()=>false))await registry.install(pkg);}}
  await fs.writeFile(path.join(app.getPath('userData'),'plugins-seeded'),'1');
  worker=new Worker(path.join(__dirname,'files-worker.cjs'),{workerData:{config:path.join(app.getPath('userData'),'folders-v1.json')}});
