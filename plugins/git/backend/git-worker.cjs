@@ -1,8 +1,6 @@
 const {parentPort}=require('node:worker_threads');
-const {execFile}=require('node:child_process');
 const path=require('node:path');
-const {promisify}=require('node:util');
-const run=promisify(execFile);
+const {runFile:run,shutdown}=require('./native-process.cjs');
 const githubAccess=new (require('./github-access.cjs').GithubAccess)();
 function relativeList(items){
   if(!Array.isArray(items)||items.length>200)throw Error('文件列表无效');
@@ -11,6 +9,7 @@ function relativeList(items){
 function branch(value){if(typeof value!=='string'||!value||value.length>160||/[\s~^:?*\[\\]/.test(value)||value.includes('..'))throw Error('分支无效');return value;}
 function remoteName(value){if(typeof value!=='string'||!/^[-A-Za-z0-9_.]{1,64}$/.test(value))throw Error('远端名称无效');return value;}
 async function command(binary,cwd,args,timeout=30000){
+  if(binary==='gh'){const fs=require('node:fs');const installed=path.join(process.env.ProgramFiles||'C:\\Program Files','GitHub CLI','gh.exe');if(fs.existsSync(installed))binary=installed;}
   const {stdout,stderr}=await run(binary,args,{cwd,windowsHide:true,timeout,maxBuffer:1024*1024,env:{...process.env,GIT_TERMINAL_PROMPT:'0',GIT_PAGER:'cat'}});
   return {stdout:stdout||'',stderr:stderr||''};
 }
@@ -18,6 +17,7 @@ const git=(cwd,args)=>command('git',cwd,args);
 async function action(cwd,method,args){
   if(typeof cwd!=='string'||!path.isAbsolute(cwd))throw Error('仓库路径无效');
   switch(method){
+    case 'shutdown':await shutdown();return;
     case 'inspect': {const [status,remotes,head]=await Promise.all([git(cwd,['status','--porcelain=v1','-b']),git(cwd,['remote','-v']),git(cwd,['branch','--show-current'])]);return {status:status.stdout,remotes:remotes.stdout,branch:head.stdout.trim()};}
     case 'log': {try{await git(cwd,['rev-parse','--verify','HEAD']);}catch{return '';}const count=Number.isSafeInteger(args?.[0])?Math.min(Math.max(args[0],1),100):30;return (await git(cwd,['log','-n',String(count),'--date=short','--pretty=format:%h%x09%ad%x09%an%x09%s'])).stdout;}
     case 'diff': return (await git(cwd,['diff','--stat'])).stdout;

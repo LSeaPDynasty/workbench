@@ -1,4 +1,4 @@
-const {execFile}=require('node:child_process'),{promisify}=require('node:util'),fs=require('node:fs'),path=require('node:path');
+const fs=require('node:fs'),path=require('node:path'),{runFile}=require('./native-process.cjs');
 function endpoint(value){
  if(typeof value!=='string'||value.length>2048||/[\\\r\n\0#]/.test(value)||value.startsWith('/')||value.split('?')[0].split('/').some(p=>!p||p==='.'||p==='..'))throw Error('GitHub 资源路径无效');
  const url=new URL('https://api.github.com/'+value);
@@ -6,7 +6,7 @@ function endpoint(value){
  return value;
 }
 class GithubAccess{
- constructor(run=promisify(execFile)){this.run=run;const installed=path.join(process.env.ProgramFiles||'C:\\Program Files','GitHub CLI','gh.exe');this.gh=fs.existsSync(installed)?installed:'gh';}
+ constructor(run=runFile){this.run=run;const installed=path.join(process.env.ProgramFiles||'C:\\Program Files','GitHub CLI','gh.exe');this.gh=fs.existsSync(installed)?installed:'gh';}
  async environment(login,env){if(!/^[A-Za-z0-9-]{1,39}$/.test(login||''))throw Error('请先登录此 GitHub 账号');try{const {stdout}=await this.run(this.gh,['auth','token','--hostname','github.com','--user',login],{windowsHide:true,timeout:15000,maxBuffer:16384,env});const token=stdout.trim();if(!token||/\s/.test(token))throw Error();return {...env,GH_TOKEN:token,GH_HOST:'github.com',GH_PROMPT_DISABLED:'1'};}catch{throw Error('此账号的 GitHub 登录已失效，请重新登录');}}
  async get(login,resource,env){const target=endpoint(resource),authorized=await this.environment(login,env);try{const result=await this.run(this.gh,['api','--hostname','github.com','--method','GET',target],{windowsHide:true,timeout:30000,maxBuffer:2*1024*1024,env:authorized});return JSON.parse(result.stdout);}catch{throw Error('GitHub 请求失败，请检查网络、代理和账号权限');}}
  async clone(login,remote,folder,cwd,env){

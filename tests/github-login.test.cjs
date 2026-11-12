@@ -1,5 +1,5 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),{EventEmitter}=require('node:events');
-const {GithubLogin}=require('../electron/github-login.cjs');
+const {GithubLogin}=require('../plugins/git/backend/github-login.cjs');
 function fake(){const child=new EventEmitter();child.stdout=new EventEmitter();child.stderr=new EventEmitter();child.writes=[];child.stdin=new EventEmitter();child.stdin.write=s=>child.writes.push(s);child.kill=()=>{child.killed=true;};return child;}
 test('browser login streams split code, answers prompts and saves confirmed identity',async()=>{
  const child=fake(),saved=[],opened=[];let options;

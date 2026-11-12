@@ -1,7 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {randomUUID} = require('node:crypto');
-const PERMISSIONS = new Set(['folders.read', 'file.receive', 'git.manage']);
+const PERMISSIONS = new Set(['folders.read', 'file.receive', 'git.manage', 'native.backend', 'browser.open', 'network.proxy']);
 function safeRelative(name) {
   if (typeof name !== 'string' || name.length > 240 || name.includes('\\') || name.includes(':') || name.includes('\0') || name.startsWith('/') || name.split('/').some(x => !x || x === '.' || x === '..' || /[. ]$/.test(x) || /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.|$)/i.test(x))) throw Error('无效的插件路径');
   return name;
@@ -21,7 +21,9 @@ function validatePackage(pkg) {
     if (typeof pkg.files[k]!=='string')throw Error('文件内容无效');total+=Buffer.byteLength(pkg.files[k]);
   }
   if(total>5*1024*1024 || !Object.hasOwn(pkg.files,m.entry))throw Error('入口缺失或插件包过大');
-  return {id:m.id,name:m.name.trim(),version:m.version,apiVersion:1,entry:m.entry,permissions:[...new Set(m.permissions)],fileTypes:m.fileTypes||[]};
+  if(m.backend!==undefined){safeRelative(m.backend);if(!m.backend.startsWith('backend/')||!m.backend.endsWith('.cjs')||!Object.hasOwn(pkg.files,m.backend)||!m.permissions.includes('native.backend'))throw Error('后台入口或本机代码权限无效');}
+  if(m.permissions.includes('native.backend')&&!m.backend)throw Error('缺少后台入口');
+  return {id:m.id,name:m.name.trim(),version:m.version,apiVersion:1,entry:m.entry,permissions:[...new Set(m.permissions)],fileTypes:m.fileTypes||[],...(m.backend?{backend:m.backend}:{})};
 }
 class Registry {
   constructor(dir){this.dir=dir;this.items=new Map();this.tail=Promise.resolve();}
@@ -40,6 +42,7 @@ class Registry {
   setEnabled(id,enabled){return this.serial(async()=>{const item=this.items.get(id);if(!item||typeof enabled!=='boolean')throw Error('无效的插件');const old=item.enabled;item.enabled=enabled;try{await this.save();}catch(e){item.enabled=old;throw e;}});}
   remove(id){return this.serial(async()=>{const old=this.items.get(id);this.items.delete(id);try{await this.save();}catch(e){if(old)this.items.set(id,old);throw e;}});}
   handlers(name){const base=path.basename(name).toLowerCase();const ext=path.extname(base)||(/^\.[a-z0-9]+$/.test(base)?base:'');return this.list().filter(m=>m.enabled&&m.fileTypes.includes(ext));}
-  async asset(id,rel){const m=this.get(id);safeRelative(rel);const base=await fs.realpath(path.join(this.dir,id,m.folder));const file=await fs.realpath(path.join(base,rel));const relative=path.relative(base,file);if(relative.startsWith('..')||path.isAbsolute(relative)||rel==='package.wbplugin')throw Error('禁止访问');return fs.readFile(file);}
+  async backendPath(id){const m=this.get(id);if(!m.backend)throw Error('此插件没有后台入口');const base=await fs.realpath(path.join(this.dir,id,m.folder)),file=await fs.realpath(path.join(base,m.backend));const relative=path.relative(base,file);if(relative.startsWith('..')||path.isAbsolute(relative))throw Error('后台路径无效');return file;}
+  async asset(id,rel){const m=this.get(id);safeRelative(rel);const base=await fs.realpath(path.join(this.dir,id,m.folder));const file=await fs.realpath(path.join(base,rel));const relative=path.relative(base,file);if(relative.startsWith('..')||path.isAbsolute(relative)||rel==='package.wbplugin'||rel.toLowerCase().startsWith('backend/'))throw Error('禁止访问');return fs.readFile(file);}
 }
 module.exports={Registry,validatePackage,safeRelative};

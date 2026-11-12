@@ -1,16 +1,16 @@
 # 已实现的插件运行时与文件应用
 
-2026-11-12，宿主 0.4.0 / API 1，Git 插件 1.1.0。本文件描述当前实现，优先于此前路线图中的未实现规划。
+2026-11-12，宿主 0.5.0 / API 1，Git 插件 2.0.0。本文件描述当前实现，优先于此前路线图中的未实现规划。
 
 ## 主体与插件边界
 
 主体只负责安装注册表、权限、沙箱页面、文件服务及跨应用调度。插件为独立 `.wbplugin` 文件，包含 manifest 和 UTF-8 页面资源，通过应用管理安装即可出现入口。文件夹列表、阅读器和日志界面均不编译进主体 React 页面。
 
-安装包目前采用有大小上限的 JSON 资源容器，**不是之前规划的 ZIP**。结构为 `{manifest, files: {"index.html": "..."}}`，最大 6 MiB 输入、5 MiB 资源、100 个文件；禁止路径穿越、非法 Windows 路径及大小写重复名。无原生代码、后台 Node 入口和安装脚本。包格式便于独立安装并减少解压攻击面；ZIP 支持以后单独版本化。
+安装包目前采用有大小上限的 JSON 资源容器，**不是之前规划的 ZIP**。结构为 `{manifest, files: {"index.html": "..."}}`，最大 6 MiB 输入、5 MiB 资源、100 个文件；禁止路径穿越、非法 Windows 路径及大小写重复名。现在支持显式授权的后台 Node 入口，但仍不执行安装脚本；后台代码是可信本机代码，不是安全沙箱。包格式便于独立安装并减少解压攻击面；ZIP 支持以后单独版本化。
 
-manifest 字段：id（小写字母数字连字符）、name、version（语义版本三段）、apiVersion（数字 1）、entry、permissions、fileTypes（扩展名列表）。例子见 plugins/*/manifest.json。新增支持现有 SDK 的插件，只更新插件包；扩展宿主 SDK 仍需要升级主体。
+manifest 字段：id（小写字母数字连字符）、name、version（语义版本三段）、apiVersion（数字 1）、entry、permissions、fileTypes、可选后台入口 backend（backend/ 下的 .cjs 文件）（扩展名列表）。例子见 plugins/*/manifest.json。新增支持现有 SDK 的插件，只更新插件包；扩展宿主 SDK 仍需要升级主体。
 
-API 1 的权限还包括 `git.manage`。获得用户安装确认的 Git 插件只能在该插件通过 `folders.read` 明确选择的目录中执行固定的 `git` 子命令（初始化、克隆、状态、暂存、提交、拉取、推送和只读记录）。插件不获得 shell、任意命令、令牌或系统凭据访问权；Git 进程在 Worker 线程运行，30 秒超时且关闭终端交互。账号资料只对所属插件可见，仅保存显示名称、服务地址和“系统凭据/SSH”认证方式；实际凭据继续由 Git Credential Manager 或 SSH 管理。GitHub 账号可通过本机 GitHub CLI 拉起浏览器登录，并在拉取、推送前切换对应账号；GitHub CLI 未安装时会返回明确提示。GitLab 和私服使用同一远端地址模型；私服不依赖预设域名。
+通用权限包括 `native.backend`（运行可信本机代码）、`browser.open`、`network.proxy`。主体以 Electron utility process 懒加载插件声明的后台入口，只按插件身份路由请求。Git/GitHub 业务和命令封装全部位于 Git 插件包内。旧 `git.manage` 仅用于识别旧插件并提示升级，不再对应主体业务接口。
 
 ## 页面与授权
 
@@ -22,11 +22,11 @@ API 1 的权限还包括 `git.manage`。获得用户安装确认的 Git 插件�
 
 ## SDK 与文件流
 
-宿主 0.4.0 新增通用能力 `git.github.request(accountId,resource)`、`git.github.openPage(resource)` 和 `git.repos.cloneToFolder(accountId,remote,folder)`。请求只能读取固定 api.github.com 的已授权账号/仓库资源，固定 GET，不允许调用方传入令牌、任意域名或命令行。插件 `github.js` 自己决定仓库查询、分页、响应映射和视图，不在主体实现仓库列表业务。后台按所选 GitHub 用户名读取 CLI 凭据。原生克隆要求 `folders.read` 权限、前台状态和目录选择器，不覆盖已有目录。GitLab/私服保留通过地址克隆与本地管理。
+`backend.request(method,args)` 是页面与自己后台的通用通信入口。宿主校验页面身份、注册表、权限和后台入口；方法名及业务参数由插件定义。主体不再提供 `git.*` SDK，Git 的页面 SDK 封装在插件 sdk.js 内。
 
-UI、仓库列表、搜索筛选、分页及其他已有能力覆盖的 GitHub 只读业务更新，仅需发布插件。新增操作系统权限、认证提供商或原生 Git 能力仍需明确升级宿主 SDK，不能宣称任意新功能都无需升级主体。
+后台插件的数据目录为 userData/plugin-data/<插件id>，卸载默认保留。Git 插件首次运行会迁移旧 git-v1.json 中属于自己的账号、仓库记录，保留旧文件。隐藏页面保留后台；关闭页面、禁用、卸载和升级会停止旧后台；崩溃后的下一次调用可重新启动。
 
-宿主 0.3.3 新增 `git.github.start/status/cancel/open`：仅 `git.manage` 插件可用，登录会话绑定插件身份；发起登录和打开授权页要求插件在前台。主进程启动后台 GitHub CLI，会话状态只返回阶段、所属账号、设备授权码或登录名，命令输出和凭据不暴露到插件。收到设备码时显式打开固定 GitHub 授权页。取消、关闭插件、退出或超时会终止登录子进程。页面轮询状态而非等待终端交互完成。旧版 `git.github.login` 返回升级提示。
+后台可经通用 host 回调请求 folders.resolve、folders.list、dialog.directory、browser.open、network.proxy。所有回调绑定后台所属插件并重新校验权限；目录选择和浏览器打开要求页面在前台。native.backend 插件自身拥有 Node.js 本机访问能力，这些回调校验不构成操作系统文件/网络隔离。
 
 - `folders.list/choose/enable/remove`：仅 `folders.read` 插件可用；choose 打开系统目录选择器。多个文件夹可独立勾选加载；移除只撤销授权，绝不删除磁盘文件。
 - `files.list(rootId, relative, offset)`：只读当前目录，一次最多 200 项，不递归扫描。符号链接不提供进入操作，并校验最终 realpath 边界。目录修改期间分页为非快照，刷新可重新读取。
@@ -34,12 +34,12 @@ UI、仓库列表、搜索筛选、分页及其他已有能力覆盖的 GitHub �
 - `files.readText(token)` / `readImage(token)`：转交时给接收插件创建专属令牌，只能读指定文件。停用来源、停用接收应用或移除目录时撤销相应引用。
 - `initial()` / `onOpen()` / `onTheme()`：接收文件和主题。再次打开文件会更新既有插件页面。
 
-文件 I/O 在 Worker 线程执行。文件夹配置和插件注册表保存在应用 userData 下，目前为原子替换 JSON；SQLite 尚未接入。程序只读用户文件，不更改原文件。
+文件 I/O 在 Worker 线程执行。文件夹配置和插件注册表保存在应用 userData 下，目前为原子替换 JSON；SQLite 尚未接入。文件阅读服务只读原文件；获授权的本机后台插件可按自己的功能写入文件。
 
 ## 随附插件与独立包
 
 - 内置：文件管理器 1.0.0、文本阅读器 1.1.0。
-- 独立安装：日志查看器 1.0.0、图片查看器 1.0.0、Git 1.0.0。Git 可管理多个账号资料、已有仓库、初始化与克隆、选择性暂存、提交、拉取和推送。
+- 独立安装：日志查看器 1.0.0、图片查看器 1.0.0、Git 2.0.0。Git 可管理多个账号资料、已有仓库、初始化与克隆、选择性暂存、提交、拉取和推送。
 - `node scripts/package-plugins.cjs` 只生成插件包，不生成主体 EXE。
 - `plugin-packages/` 保存可安装包，`bundled-plugins/` 仅在新用户首次启动时安装内置包。已有插件不会被重启时强制覆盖，升级走安装按钮。
 

@@ -1,6 +1,6 @@
 # Modular Workbench
 
-当前版本：0.4.0，Git 插件 1.1.0。已接入动态插件运行时、内置文件管理器和只读文本阅读器；日志、图片和 Git 为独立安装包。Git 支持浏览器登录、远端仓库列表与私有仓库克隆。首次使用新版 Git 需要主体 0.4.0 提供的能力；其后的列表、界面、分页和既有能力内的业务改动仅更新插件。Windows 安装版会检查 GitHub Releases 中的新版本，插件管理中可搜索、筛选并独立更新插件。使用方式与实际限制见 [插件运行时](docs/PLUGIN-RUNTIME-V1.md)、[发布说明](docs/RELEASES.md) 和 [更新记录](docs/CHANGELOG.md)。此前预览说明保留作为演进记录，以本节链接的实现状态为准。
+当前版本：0.5.0，Git 插件 2.0.0。主体提供通用的页面与本机后台运行时；Git 命令、GitHub 登录、账号和仓库资料均由 Git 插件自己的后台进程处理，随独立 `.wbplugin` 发布。主体无需安装 Git 插件即可运行。使用方式及权限边界见 [插件运行时](docs/PLUGIN-RUNTIME-V1.md)、[后台协议](docs/PLUGIN-CAPABILITIES.md) 和 [更新记录](docs/CHANGELOG.md)。
 
 面向 Windows 的本地优先、可扩展桌面工作台。项目暂定名，尚未连接远程仓库。
 

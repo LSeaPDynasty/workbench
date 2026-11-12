@@ -1,4 +1,4 @@
-const api=window.workbench,$=id=>document.getElementById(id);let accounts=[],repos=[],roots=[],current=null,editing=null;
+const api=window.GitSDK,$=id=>document.getElementById(id);let accounts=[],repos=[],roots=[],current=null,editing=null;
 const error=value=>{const text=value?.message||value||'';$('error').textContent=text;if($('repo-dialog').open)$('repo-error').textContent=text;};
 function option(value,label){const node=document.createElement('option');node.value=value;node.textContent=label;return node;}
 function accountLabel(account){return account.name+' · '+(account.githubLogin||account.server);}

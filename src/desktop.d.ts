@@ -1,4 +1,4 @@
-export type PluginInfo={id:string;name:string;version:string;enabled:boolean;permissions:string[];fileTypes:string[]};
+export type PluginInfo={id:string;name:string;version:string;enabled:boolean;permissions:string[];fileTypes:string[];backend?:string};
 type Bounds={x:number;y:number;width:number;height:number};
 export type PluginUpdate={id:string;name:string;from:string;version:string};
 export type UpdateStatus={phase:'unsupported'|'idle'|'checking'|'downloading'|'downloaded'|'error';message:string;version?:string;progress?:number};
