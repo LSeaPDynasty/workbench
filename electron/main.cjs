@@ -6,8 +6,9 @@ const {Worker}=require('node:worker_threads');
 const {Registry,validatePackage}=require('./plugin-registry.cjs');
 const {GitService,cleanFolder,cleanRemote}=require('./git-service.cjs');
 protocol.registerSchemesAsPrivileged([{scheme:'wb-plugin',privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
-let win,registry,worker,gitWorker,gitService,theme='light',active=null,sequence=0,installing=false;
+let win,registry,worker,gitWorker,gitService,autoUpdater,theme='light',active=null,sequence=0,installing=false;
 const views=new Map(),pending=new Map(),gitPending=new Map(),lastOpened=new Map();
+let updateStatus={phase:'unsupported',message:'仅安装版支持更新'};
 const hostURL=pathToFileURL(path.join(__dirname,'../dist/index.html')).href;
 function files(method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(Error('文件操作超时'));},15000);pending.set(id,{resolve,reject,timer});worker.postMessage({id,method,args});});}
 function git(cwd,method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timeout=method==='githubLogin'?305000:35000;const timer=setTimeout(()=>{gitPending.delete(id);reject(Error('Git 操作超时'));},timeout);gitPending.set(id,{resolve,reject,timer});gitWorker.postMessage({id,cwd,method,args});});}
@@ -17,6 +18,26 @@ function pluginSender(e){for(const [id,v]of views){if(e.sender===v.webContents&&
 function requirePermission(id,permission){if(!registry.get(id).permissions.includes(permission))throw Error('未授予此权限');}
 async function repoPath(id,repoId){const repo=gitService.getRepo(id,repoId);return {repo,cwd:await files('resolve',id,repo.rootId,repo.relative)};}
 async function activateGitHub(owner,accountId){if(!accountId)return;const account=gitService.getAccount(owner,accountId);if(account.provider==='github'&&account.githubLogin)await git(app.getPath('userData'),'githubActivate',account.githubLogin);}
+function setUpdateStatus(next){updateStatus={...updateStatus,...next};if(win&&!win.isDestroyed())win.webContents.send('host:update',updateStatus);}
+async function checkUpdates(){
+ if(!autoUpdater)throw Error('仅安装版支持检查更新');
+ const feed=await require('./update-auth.cjs').privateFeed();
+ autoUpdater.setFeedURL(feed);
+ return autoUpdater.checkForUpdates();
+}
+function setupUpdates(){
+ if(!app.isPackaged)return;
+ try{autoUpdater=require('electron-updater').autoUpdater;autoUpdater.autoDownload=true;autoUpdater.autoInstallOnAppQuit=false;
+  autoUpdater.on('checking-for-update',()=>setUpdateStatus({phase:'checking',message:'正在检查更新'}));
+  autoUpdater.on('update-not-available',()=>setUpdateStatus({phase:'idle',message:'已是最新版本'}));
+  autoUpdater.on('update-available',info=>setUpdateStatus({phase:'downloading',version:info.version,message:'正在下载更新'}));
+  autoUpdater.on('download-progress',info=>setUpdateStatus({phase:'downloading',progress:Math.round(info.percent),message:'正在下载更新'}));
+  autoUpdater.on('update-downloaded',info=>setUpdateStatus({phase:'downloaded',version:info.version,progress:100,message:'更新已下载'}));
+  autoUpdater.logger=null;
+  autoUpdater.on('error',()=>setUpdateStatus({phase:'error',message:'更新失败，请检查网络和 GitHub 仓库权限'}));
+  void checkUpdates().catch(error=>setUpdateStatus({phase:'error',message:error.message?.startsWith('请先')?error.message:'更新失败，请检查网络和 GitHub 仓库权限'}));
+ }catch(error){setUpdateStatus({phase:'error',message:error.message||'更新服务不可用'});}
+}
 function bounds(rect){if(!rect||!['x','y','width','height'].every(k=>Number.isFinite(rect[k])))throw Error('窗口尺寸无效');const [width,height]=win.getContentSize();const x=Math.min(Math.max(0,Math.round(rect.x)),width),y=Math.min(Math.max(0,Math.round(rect.y)),height);return {x,y,width:Math.min(Math.max(0,Math.round(rect.width)),width-x),height:Math.min(Math.max(0,Math.round(rect.height)),height-y)};}
 function hide(){for(const v of views.values())v.setVisible(false);active=null;}
 function close(id){const v=views.get(id);if(v){views.delete(id);win.contentView.removeChildView(v);v.webContents.close();}lastOpened.delete(id);if(active===id)active=null;}
@@ -45,6 +66,9 @@ ipcMain.handle('host:request',result(async(e,method,args)=>{hostSender(e);if(!Ar
  case 'bounds':if(active&&views.has(active))views.get(active).setBounds(bounds(args[0]));return;
  case 'theme':if(!['light','dark'].includes(args[0]))throw Error('主题无效');theme=args[0];for(const v of views.values())v.webContents.send('plugin:theme',theme);return;
  case 'close':close(args[0]);return;
+ case 'update.status':return updateStatus;
+ case 'update.check':try{await checkUpdates();}catch{setUpdateStatus({phase:'error',message:'更新失败，请检查 GitHub CLI 登录、网络和仓库权限'});}return updateStatus;
+ case 'update.install':if(!autoUpdater||updateStatus.phase!=='downloaded')throw Error('没有可安装的更新');autoUpdater.quitAndInstall(false,true);return;
  default:throw Error('未知操作');
 }}));
 ipcMain.handle('plugin:request',result(async(e,method,args)=>{const id=pluginSender(e);if(!Array.isArray(args)||args.length>4)throw Error('参数无效');
@@ -91,6 +115,6 @@ app.whenReady().then(async()=>{registry=new Registry(path.join(app.getPath('user
  gitWorker.on('message',({id,data,error})=>{const p=gitPending.get(id);if(!p)return;clearTimeout(p.timer);gitPending.delete(id);error?p.reject(Error(error)):p.resolve(data);});
  gitWorker.on('error',()=>{for(const p of gitPending.values()){clearTimeout(p.timer);p.reject(Error('Git 服务停止，请重启'));}gitPending.clear();});
  win=new BrowserWindow({width:1320,height:880,minWidth:960,minHeight:640,backgroundColor:'#eeeee8',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
- win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());win.on('closed',()=>{for(const v of views.values())v.webContents.close();views.clear();worker.terminate();gitWorker.terminate();});await win.loadURL(hostURL);
+ win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());win.on('closed',()=>{for(const v of views.values())v.webContents.close();views.clear();worker.terminate();gitWorker.terminate();});await win.loadURL(hostURL);setupUpdates();
 }).catch(e=>{dialog.showErrorBox('无法启动',e.message);app.quit();});
 app.on('window-all-closed',()=>app.quit());

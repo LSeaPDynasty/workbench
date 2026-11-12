@@ -1,0 +1,14 @@
+# Windows 发布与更新
+
+从 0.3.0 起，Windows 发行版使用 NSIS 安装程序。便携版不能自更新；已使用便携版的用户需要先手动安装一次 0.3.0 以后的安装程序。
+
+应用启动时会查询 `LSeaPDynasty/workbench` 的最新 GitHub Release。发现新版本后自动下载，设置页显示“重启安装”，点击后才安装。私有仓库使用本机 GitHub CLI 已登录账号的凭据；该账号需要仓库读取权限。令牌仅在宿主内存中使用，不进入插件、发布配置或安装包。更新使用 Electron 系统代理设置；本机 Clash 系统代理为 127.0.0.1:7897。
+
+发布步骤：
+
+1. 更新 `package.json` 中的语义版本号，执行 `pnpm test` 与 `pnpm build`。
+2. 执行 `pnpm package`，生成 `release/Modular Workbench-Setup-<版本>.exe`、同名 `.blockmap` 和 `latest.yml`。
+3. 在 GitHub 创建标签 `v<版本>` 的正式 Release，将以上三个文件作为附件上传。先上传安装包和 blockmap，最后上传 `latest.yml`。
+4. 从已安装的上一版本检查更新，确认下载、重启和数据保留正常。
+
+首次使用需要安装 GitHub CLI 并运行 `gh auth login`。Windows 正式分发还应配置代码签名证书，减少系统拦截和身份提示。当前构建未签名；不能将校验和视为发布者签名。首次 0.3.0 发布没有更旧的安装版，跨版本安装和数据保留验收待后续版本完成。

@@ -13,7 +13,7 @@ test('host IPC authorizes senders and routes files to dynamically installed plug
  try{for(let i=0;i<100&&!loaded&&!startError;i++)await new Promise(r=>setTimeout(r,20));assert.equal(startError,undefined);assert.ok(window&&loaded);
   const event=wc=>({sender:wc,senderFrame:wc.mainFrame});const host=(method,...args)=>callbacks.get('host:request')(event(window.webContents),method,args);const plugin=(view,method,...args)=>callbacks.get('plugin:request')(event(view.webContents),method,args);
   assert.equal((await callbacks.get('host:request')({sender:{},senderFrame:{}},'list',[])).ok,false);
-  const list=(await host('list')).data;assert.ok(list.some(p=>p.id==='builtin-files'));
+  const list=(await host('list')).data;assert.ok(list.some(p=>p.id==='builtin-files'));const update=(await host('update.status')).data;assert.equal(update.phase,'unsupported');assert.equal((await host('update.install')).ok,false);
   assert.equal((await host('show','builtin-files',{x:20,y:90,width:1000,height:600})).ok,true);const fileView=views.at(-1);
   assert.equal((await callbacks.get('plugin:request')({sender:fileView.webContents,senderFrame:{url:fileView.webContents.mainFrame.url}},'folders.list',[])).ok,false);
   const chosen=path.join(base,'chosen');await fs.mkdir(chosen);await fs.writeFile(path.join(chosen,'app.log'),'INFO hello\nERROR oops');selection=[chosen];const roots=(await plugin(fileView,'folders.choose')).data;assert.equal(roots.length,1);const listing=(await plugin(fileView,'files.list',roots[0].id,'',0)).data;const token=listing.entries[0].token;
