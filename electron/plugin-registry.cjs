@@ -32,10 +32,10 @@ class Registry {
   get(id){const item=this.items.get(id);if(!item||!item.enabled)throw Error('插件未启用');return item;}
   async save(){const target=path.join(this.dir,'registry.json'),tmp=target+'.tmp';await fs.writeFile(tmp,JSON.stringify([...this.items.values()],null,2));await fs.rename(tmp,target);}
   serial(fn){const next=this.tail.then(fn);this.tail=next.catch(()=>{});return next;}
-  install(pkg){return this.serial(async()=>{const m=validatePackage(pkg);const previous=this.items.get(m.id);const folder=m.version+'-'+randomUUID(),dest=path.join(this.dir,m.id,folder);await fs.mkdir(dest,{recursive:true});
+  install(pkg,options={}){return this.serial(async()=>{const m=validatePackage(pkg);const previous=this.items.get(m.id);const folder=m.version+'-'+randomUUID(),dest=path.join(this.dir,m.id,folder);await fs.mkdir(dest,{recursive:true});
     await fs.writeFile(path.join(dest,'package.wbplugin'),JSON.stringify(pkg));
     for(const [name,content] of Object.entries(pkg.files)){const out=path.join(dest,name);await fs.mkdir(path.dirname(out),{recursive:true});await fs.writeFile(out,content);}
-    this.items.set(m.id,{...m,folder,enabled:true});try{await this.save();}catch(e){if(previous)this.items.set(m.id,previous);else this.items.delete(m.id);throw e;}return m;
+    this.items.set(m.id,{...m,folder,enabled:options.preserveEnabled&&previous?previous.enabled:true});try{await this.save();}catch(e){if(previous)this.items.set(m.id,previous);else this.items.delete(m.id);throw e;}return m;
   });}
   setEnabled(id,enabled){return this.serial(async()=>{const item=this.items.get(id);if(!item||typeof enabled!=='boolean')throw Error('无效的插件');const old=item.enabled;item.enabled=enabled;try{await this.save();}catch(e){item.enabled=old;throw e;}});}
   remove(id){return this.serial(async()=>{const old=this.items.get(id);this.items.delete(id);try{await this.save();}catch(e){if(old)this.items.set(id,old);throw e;}});}

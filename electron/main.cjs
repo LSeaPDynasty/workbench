@@ -8,7 +8,20 @@ const {GitService,cleanFolder,cleanRemote}=require('./git-service.cjs');
 protocol.registerSchemesAsPrivileged([{scheme:'wb-plugin',privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
 let win,registry,worker,gitWorker,gitService,autoUpdater,theme='light',active=null,sequence=0,installing=false;
 const views=new Map(),pending=new Map(),gitPending=new Map(),lastOpened=new Map();
-let updateStatus={phase:'unsupported',message:'仅安装版支持更新'};
+let updateStatus={phase:'unsupported',message:'仅安装版支持更新'},pluginUpdater;
+function pluginUpdates(){if(!pluginUpdater){const {PluginUpdates}=require('./plugin-updates.cjs');pluginUpdater=new PluginUpdates(registry,(...args)=>require('electron').net.fetch(...args),require('./update-auth.cjs').privateFeed);}return pluginUpdater;}
+async function updatePlugin(id){
+ if(installing)throw Error('正在安装');installing=true;
+ try{
+  const {pkg,manifest,old}=await pluginUpdates().download(id);
+  const labels={'folders.read':'读取你选择的文件夹','file.receive':'读取交给此应用的文件','git.manage':'在你选择的目录中执行 Git 操作'};
+  const added=manifest.permissions.filter(p=>!old.permissions.includes(p));
+  const consent=await dialog.showMessageBox(win,{type:'question',buttons:['取消','更新'],defaultId:0,cancelId:0,message:manifest.name+' '+old.version+' → '+manifest.version,detail:added.length?'新增权限：\n'+added.map(p=>labels[p]).join('\n'):'保留插件数据'});
+  if(consent.response!==1)return registry.list();
+  if(!registry.items.has(id)||registry.items.get(id).version!==old.version)throw Error('插件已改变，请重新检查');
+  await registry.install(pkg,{preserveEnabled:true});close(id);await files('revokePlugin',id);pluginUpdates().pending.delete(id);return registry.list();
+ }finally{installing=false;}
+}
 const hostURL=pathToFileURL(path.join(__dirname,'../dist/index.html')).href;
 function files(method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timer=setTimeout(()=>{pending.delete(id);reject(Error('文件操作超时'));},15000);pending.set(id,{resolve,reject,timer});worker.postMessage({id,method,args});});}
 function git(cwd,method,...args){return new Promise((resolve,reject)=>{const id=++sequence;const timeout=method==='githubLogin'?305000:35000;const timer=setTimeout(()=>{gitPending.delete(id);reject(Error('Git 操作超时'));},timeout);gitPending.set(id,{resolve,reject,timer});gitWorker.postMessage({id,cwd,method,args});});}
@@ -60,6 +73,8 @@ async function install(){if(installing)throw Error('正在安装');installing=tr
 let selectionGeneration=0;
 ipcMain.handle('host:request',result(async(e,method,args)=>{hostSender(e);if(!Array.isArray(args))throw Error('参数无效');switch(method){
  case 'list':return registry.list();case 'install':return install();
+ case 'plugins.checkUpdates':return pluginUpdates().check();
+ case 'plugins.update':return updatePlugin(args[0]);
  case 'enable':case 'remove':{const [id,enabled]=args;if(typeof id!=='string')throw Error('参数无效');if(method==='enable')await registry.setEnabled(id,enabled);else {const consent=await dialog.showMessageBox(win,{type:'question',buttons:['取消','卸载'],defaultId:0,cancelId:0,message:'卸载此插件？',detail:'保留文件夹配置，不删除原文件。'});if(consent.response!==1)return registry.list();await registry.remove(id);}close(id);await files('revokePlugin',id);return registry.list();}
  case 'show':{const [id,rect]=args;const checked=bounds(rect),generation=++selectionGeneration;const view=await show(id,checked);if(generation!==selectionGeneration)return;view.setBounds(checked);view.setVisible(true);active=id;view.webContents.send('plugin:theme',theme);return;}
  case 'hide':selectionGeneration++;hide();return;
