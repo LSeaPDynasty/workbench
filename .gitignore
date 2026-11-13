@@ -1,4 +1,6 @@
 node_modules/
+plugins/database/backend/drivers.cjs
+plugin-packages/database-workbench-*.wbplugin
 dist/
 out/
 release/

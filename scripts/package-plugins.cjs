@@ -1,6 +1,7 @@
 const fs=require('node:fs'),path=require('node:path');
 const {validatePackage}=require('../electron/plugin-registry.cjs');
 const root=path.resolve(__dirname,'..');
+require('esbuild').buildSync({entryPoints:[path.join(root,'plugins/database/drivers.cjs')],outfile:path.join(root,'plugins/database/backend/drivers.cjs'),bundle:true,platform:'node',format:'cjs',minify:true,legalComments:'eof'});
 fs.mkdirSync(path.join(root,'bundled-plugins'),{recursive:true});fs.mkdirSync(path.join(root,'plugin-packages'),{recursive:true});
 function resources(dir,prefix=''){const files={};for(const entry of fs.readdirSync(dir,{withFileTypes:true})){if(!prefix&&entry.name==='manifest.json')continue;const rel=prefix+entry.name;if(entry.isDirectory())Object.assign(files,resources(path.join(dir,entry.name),rel+'/'));else files[rel]=fs.readFileSync(path.join(dir,entry.name),'utf8');}return files;}
 const sources=fs.readdirSync(path.join(root,'plugins'),{withFileTypes:true}).filter(entry=>entry.isDirectory()&&fs.existsSync(path.join(root,'plugins',entry.name,'manifest.json'))).map(entry=>entry.name);

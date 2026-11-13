@@ -20,6 +20,8 @@ Electron + React + TypeScript + Vite；SQLite 保存本地结构化数据；elec
 
 ## 文档入口
 
+- [项目上下文与对话交接](docs/PROJECT-CONTEXT.md)
+- [数据库插件](docs/DATABASE-PLUGIN.md)
 - [开发规范](AGENTS.md)
 - [底层架构](docs/ARCHITECTURE.md)
 - [多应用运行时、后台任务与内存治理](docs/RUNTIME.md)

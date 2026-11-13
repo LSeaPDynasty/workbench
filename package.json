@@ -19,10 +19,13 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@redis/client": "6.3.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "electron": "^40.0.0",
     "electron-builder": "^26.0.0",
+    "esbuild": "0.28.2",
+    "mysql2": "3.24.6",
     "typescript": "^5.7.0",
     "vite": "^6.0.0"
   },
@@ -41,7 +44,14 @@
     "win": {
       "target": "nsis",
       "artifactName": "${productName}-Setup-${version}.${ext}",
-      "publish": [{"provider":"github","owner":"LSeaPDynasty","repo":"workbench","releaseType":"release"}]
+      "publish": [
+        {
+          "provider": "github",
+          "owner": "LSeaPDynasty",
+          "repo": "workbench",
+          "releaseType": "release"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
