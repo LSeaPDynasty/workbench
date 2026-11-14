@@ -17,7 +17,14 @@ let embedMode='bar';
 function barHeight(){return 64;}
 function embedRect(){const w=document.documentElement.clientWidth,h=document.documentElement.clientHeight;return embedMode==='full'?{x:0,y:0,width:w,height:h}:{x:0,y:Math.max(0,h-barHeight()),width:w,height:barHeight()};}
 function setEmbedMode(mode){embedMode=mode;document.body.classList.toggle('has-bar',mode==='bar'&&embedded);if(embedded&&core.view)core.view.bounds(embedRect()).catch(()=>{});}
-async function playEmbed(id){if(!core.view)return call('open',id,playlist||undefined);const {url:embedUrl}=await call('embed',id,playlist||undefined);const url=embedUrl+'&theme='+encodeURIComponent(document.documentElement.dataset.theme||'dark');lastEmbed=url;embedMode=items.find(item=>item.id===id)?.kind==='video'?'full':'bar';await core.view.open(url,embedRect());embedded=true;document.body.classList.toggle('has-bar',embedMode==='bar');$('now-playing').hidden=true;}
+async function playEmbed(id){
+ const filters={kind,library,query:$('search').value,favorite};
+ if(!core.view)return call('open',id,playlist||undefined,filters);
+ const {url:embedUrl}=await call('embed',id,playlist||undefined,filters),url=embedUrl+'&theme='+encodeURIComponent(document.documentElement.dataset.theme||'dark');
+ embedMode=items.find(item=>item.id===id)?.kind==='video'?'full':'bar';
+ if(embedded&&lastEmbed&&new URL(lastEmbed).origin===new URL(url).origin&&core.view.command){const context=JSON.parse(new URLSearchParams(new URL(url).hash.slice(1)).get('context'));await core.view.command('queue:'+JSON.stringify({id,context}));await core.view.bounds(embedRect());}else{if(embedded)await core.view.close();await core.view.open(url,embedRect());}
+ lastEmbed=url;embedded=true;document.body.classList.toggle('has-bar',embedMode==='bar');$('now-playing').hidden=true;
+}
 function showEdit(item){editing=item;$('edit-title').value=item.title;$('edit-artist').value=item.artist;$('edit-album').value=item.album;$('edit-hash').value=item.hash;$('edit-copies').textContent=item.available?item.copies+' 个可用位置 · '+item.filename:'文件不可用，资料和歌单已保留';$('edit-playlist-box').hidden=item.kind!=='music';$('edit-playlist').replaceChildren(...playlists.map(p=>new Option(p.name,p.id)));$('playlist-add-track').disabled=!playlists.length;$('edit-error').textContent='';$('edit-dialog').showModal();}
 function showPlaylistName(rename=false){playlistEditing=rename;$('playlist-dialog-title').textContent=rename?'重命名歌单':'新建歌单';$('playlist-name').value=rename?playlists.find(p=>p.id===playlist)?.name||'':'';$('playlist-error').textContent='';$('playlist-dialog').showModal();}
 $('playlist-new').onclick=()=>showPlaylistName();$('playlist-rename').onclick=()=>showPlaylistName(true);

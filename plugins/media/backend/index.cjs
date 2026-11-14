@@ -17,8 +17,8 @@ exports.create=async context=>{const catalog=new Catalog(context);await catalog.
   case 'scan':return catalog.start({rehash:args[0]===true});
   case 'cancel':return catalog.cancel();
   case 'favorite':return catalog.favorite(args[0],args[1]);
-  case 'open':return server.open(args[0],args[1]);
-  case 'embed':return {url:await server.embedUrl(args[0],args[1])};
+  case 'open':return server.open(args[0],args[1],args[2]);
+  case 'embed':return {url:await server.embedUrl(args[0],args[1],args[2])};
   case 'share.start':return server.start(true,args[0]===undefined?8098:args[0]);
   case 'share.stop':await server.stop(true);return server.info();
   default:throw Error('未知媒体操作');
