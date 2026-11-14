@@ -5,6 +5,11 @@ const {pathToFileURL}=require('node:url');
 const {Worker}=require('node:worker_threads');
 const {Registry,validatePackage}=require('./plugin-registry.cjs');
 const {BackendManager}=require('./backend-manager.cjs');
+const {setupDesktopLifecycle}=require('./desktop-lifecycle.cjs');
+let desktopLifecycle;
+const themeTokens=require('node:fs').readFileSync(path.join(__dirname,'../design/tokens.css'),'utf8');
+function windowTheme(value){const section=value==='dark'?themeTokens.split("[data-theme='dark']")[1]:themeTokens.split("[data-theme='dark']")[0];const color=name=>section.match(new RegExp('--color-'+name+': *(#[0-9a-fA-F]+)'))[1];return {color:color('bg'),symbolColor:color('text'),height:48};}
+
 protocol.registerSchemesAsPrivileged([{scheme:'wb-plugin',privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
 let win,registry,worker,backendManager,autoUpdater,theme='light',active=null,sequence=0,installing=false;
 const views=new Map(),pending=new Map(),lastOpened=new Map();
@@ -100,7 +105,7 @@ ipcMain.handle('host:request',result(async(e,method,args)=>{hostSender(e);if(!Ar
  case 'show':{const [id,rect]=args;const checked=bounds(rect),generation=++selectionGeneration;const view=await show(id,checked);if(generation!==selectionGeneration)return;view.setBounds(checked);view.setVisible(true);active=id;view.webContents.send('plugin:theme',theme);return;}
  case 'hide':selectionGeneration++;hide();return;
  case 'bounds':if(active&&views.has(active))views.get(active).setBounds(bounds(args[0]));return;
- case 'theme':if(!['light','dark'].includes(args[0]))throw Error('主题无效');theme=args[0];for(const v of views.values())v.webContents.send('plugin:theme',theme);return;
+ case 'theme':if(!['light','dark'].includes(args[0]))throw Error('主题无效');theme=args[0];win.setTitleBarOverlay(windowTheme(theme));win.setBackgroundColor(windowTheme(theme).color);for(const v of views.values())v.webContents.send('plugin:theme',theme);return;
  case 'close':close(args[0]);return;
  case 'update.status':return updateStatus;
  case 'update.check':try{await checkUpdates();}catch{setUpdateStatus({phase:'error',message:'更新失败，请检查 GitHub CLI 登录、网络和仓库权限'});}return updateStatus;
@@ -129,8 +134,9 @@ app.whenReady().then(async()=>{registry=new Registry(path.join(app.getPath('user
  worker.on('message',({id,data,error})=>{const p=pending.get(id);if(!p)return;clearTimeout(p.timer);pending.delete(id);error?p.reject(Error(error)):p.resolve(data);});
  worker.on('error',()=>{for(const p of pending.values()){clearTimeout(p.timer);p.reject(Error('文件服务停止，请重启'));}pending.clear();});
  backendManager=new BackendManager({registry,dataDir:path.join(app.getPath('userData'),'plugin-data'),fork:(...args)=>require('electron').utilityProcess.fork(...args),host:backendCapability});
- app.on('before-quit',event=>{if(backendManager.jobs.size){event.preventDefault();void backendManager.shutdown().then(()=>app.quit());}});
- win=new BrowserWindow({width:1320,height:880,minWidth:960,minHeight:640,backgroundColor:'#eeeee8',autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
+
+ win=new BrowserWindow({width:1320,height:880,minWidth:960,minHeight:640,backgroundColor:windowTheme(theme).color,titleBarStyle:'hidden',titleBarOverlay:windowTheme(theme),autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
+ desktopLifecycle=setupDesktopLifecycle({app,win,backendManager,electron:require('electron')});
  win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());win.on('closed',()=>{for(const v of views.values())v.webContents.close();views.clear();worker.terminate();backendManager.dispose();});await win.loadURL(hostURL);setupUpdates();
 }).catch(e=>{dialog.showErrorBox('无法启动',e.message);app.quit();});
 app.on('window-all-closed',()=>app.quit());

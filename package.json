@@ -1,6 +1,6 @@
 {
   "name": "modular-workbench",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
@@ -38,6 +38,7 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "design/tokens.css",
       "package.json",
       "bundled-plugins/**/*"
     ],
