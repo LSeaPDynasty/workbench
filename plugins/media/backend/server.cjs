@@ -27,7 +27,7 @@ class MediaServer{
    const session=randomBytes(32).toString('base64url');state.sessions.set(session,{expires:Date.now()+12*3600000});if(state.sessions.size>128)state.sessions.delete(state.sessions.keys().next().value);res.setHeader('Set-Cookie',state.cookie+'='+session+'; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200');json(res,200,{ok:true});return;
   }
   if(!['GET','HEAD'].includes(req.method)){json(res,405,{error:'只读服务'});return;}
-  const assets={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/tokens.css':'../tokens.css'};
+  const assets={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/tokens.css':'../tokens.css','/theme.css':'../theme.css','/ui.js':'../ui.js'};
   if(route==='/favicon.ico'){res.writeHead(204);res.end();return;}
   if(Object.hasOwn(assets,route)){const file=assets[route];let data;try{data=await fs.readFile(path.join(__dirname,'../web',file));}catch{if(route!=='/tokens.css')throw Error();data=await fs.readFile(path.join(__dirname,'../../../design/tokens.css'));}res.writeHead(200,{'Content-Type':file.endsWith('.js')?'application/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8','Content-Length':data.length});res.end(req.method==='HEAD'?undefined:data);return;}
   const cookie=(req.headers.cookie||'').split(';').map(p=>p.trim()).find(p=>p.startsWith(state.cookie+'='))?.slice(state.cookie.length+1);const session=state.sessions.get(cookie);if(!session||session.expires<Date.now()){if(cookie)state.sessions.delete(cookie);json(res,401,{error:'请使用有效分享链接进入'});return;}
