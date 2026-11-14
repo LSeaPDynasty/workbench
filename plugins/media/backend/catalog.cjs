@@ -82,7 +82,12 @@ class Catalog{
   this.revision++;await this.save();return this.playlists();
  }
  cancel(){this.generation++;this.scan={...this.scan,running:false,cancelled:true};return {...this.scan};}
- start(){const run=++this.generation;this.scan={running:true,visited:0,found:0,errors:0,hashedBytes:0,truncated:false};const task=this.scanAll(run);this.tasks.add(task);void task.finally(()=>this.tasks.delete(task));return {...this.scan};}
+ start(options){const rehash=options?.rehash===true,run=++this.generation;this.scan={running:true,visited:0,found:0,errors:0,reused:0,hashedBytes:0,truncated:false};const task=this.scanAll(run,rehash);this.tasks.add(task);void task.finally(()=>this.tasks.delete(task));return {...this.scan};}
+ async probeFile(rootId,relative,run){
+  const filename=await this.context.host('folders.resolve',rootId,relative);if(run!==this.generation)throw Error('扫描已取消');
+  const info=await fs.stat(filename,{bigint:true});if(!info.isFile())throw Error('非文件');
+  return {fingerprint:fingerprint(info),size:Number(info.size),modified:new Date(Number(info.mtimeMs)).toISOString()};
+ }
  async hashFile(rootId,relative,run){
   const filename=await this.context.host('folders.resolve',rootId,relative),file=await fs.open(filename,'r');
   try{
@@ -93,8 +98,9 @@ class Catalog{
    return {hash:hash.digest('hex'),size:Number(after.size),modified:new Date(Number(after.mtimeMs)).toISOString(),fingerprint:fingerprint(after)};
   }finally{await file.close();}
  }
- async scanAll(run){
-  const found=[],complete=new Set(),seen=new Set(),scan=this.scan;
+ async scanAll(run,rehash=false){
+  const found=[],complete=new Set(),seen=new Set(),scan=this.scan,cached=new Map();
+  if(!rehash)for(const item of this.state.items)for(const location of item.locations)cached.set(key(location.rootId,location.relative),{id:item.id,fingerprint:location.fingerprint});
   try{
    const libraries=this.state.libraries.filter(l=>l.enabled).map(l=>({...l}));
    for(const library of libraries){
@@ -113,7 +119,10 @@ class Catalog{
      for(const entry of media){
       if(run!==this.generation)return;
       try{
-       const result=await this.hashFile(library.id,entry.relative,run),folders=current.relative.split(path.sep).filter(Boolean),title=path.basename(entry.name,path.extname(entry.name));
+       const previous=rehash?undefined:cached.get(key(library.id,entry.relative));let result=null;
+       if(previous){const probe=await this.probeFile(library.id,entry.relative,run);if(probe.fingerprint===previous.fingerprint){result={hash:previous.id,...probe};scan.reused++;}}
+       if(!result)result=await this.hashFile(library.id,entry.relative,run);
+       const folders=current.relative.split(path.sep).filter(Boolean),title=path.basename(entry.name,path.extname(entry.name));
        const location={rootId:library.id,relative:entry.relative,coverRelative:cover,subtitleRelative:subtitles.get(title)||null,kind:entry.type[0],mime:entry.type[1],title,artist:entry.type[0]==='music'&&folders.length>1?folders.at(-2):'',album:entry.type[0]==='music'?folders.at(-1)||library.name:'',size:result.size,modified:result.modified,fingerprint:result.fingerprint};
        found.push({id:result.hash,location});seen.add(key(library.id,entry.relative));scan.found=found.length;
       }catch{if(run!==this.generation)return;scan.errors++;}

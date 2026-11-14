@@ -11,8 +11,11 @@ const themeTokens=require('node:fs').readFileSync(path.join(__dirname,'../design
 function windowTheme(value){const section=value==='dark'?themeTokens.split("[data-theme='dark']")[1]:themeTokens.split("[data-theme='dark']")[0];const color=name=>section.match(new RegExp('--color-'+name+': *(#[0-9a-fA-F]+)'))[1];return {color:color('bg'),symbolColor:color('text'),height:48};}
 
 protocol.registerSchemesAsPrivileged([{scheme:'wb-plugin',privileges:{standard:true,secure:true,supportFetchAPI:true}}]);
+// 内嵌播放器在插件被切走或窗口被遮挡/最小化时也要继续出声，别让 Chromium 把媒体挂起。
+app.commandLine.appendSwitch('disable-background-media-suspend');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 let win,registry,worker,backendManager,autoUpdater,theme='light',active=null,sequence=0,installing=false;
-const views=new Map(),pending=new Map(),lastOpened=new Map();
+const views=new Map(),pending=new Map(),lastOpened=new Map(),embeds=new Map();
 let updateStatus={phase:'unsupported',message:'仅安装版支持更新'},pluginUpdater;
 function pluginUpdates(){if(!pluginUpdater){const {PluginUpdates}=require('./plugin-updates.cjs');pluginUpdater=new PluginUpdates(registry,(...args)=>require('electron').net.fetch(...args),require('./update-auth.cjs').privateFeed);}return pluginUpdater;}
 async function updatePlugin(id){
@@ -76,8 +79,37 @@ function setupUpdates(){
  }catch(error){setUpdateStatus({phase:'error',message:error.message||'更新服务不可用'});}
 }
 function bounds(rect){if(!rect||!['x','y','width','height'].every(k=>Number.isFinite(rect[k])))throw Error('窗口尺寸无效');const [width,height]=win.getContentSize();const x=Math.min(Math.max(0,Math.round(rect.x)),width),y=Math.min(Math.max(0,Math.round(rect.y)),height);return {x,y,width:Math.min(Math.max(0,Math.round(rect.width)),width-x),height:Math.min(Math.max(0,Math.round(rect.height)),height-y)};}
-function hide(){for(const v of views.values())v.setVisible(false);active=null;}
-function close(id){backendManager?.stop(id);const v=views.get(id);if(v){views.delete(id);win.contentView.removeChildView(v);v.webContents.close();}lastOpened.delete(id);if(active===id)active=null;}
+function closeEmbed(id){const entry=embeds.get(id);if(!entry)return;embeds.delete(id);try{win.contentView.removeChildView(entry.view);}catch{}try{entry.view.webContents.close();}catch{}}
+function hide(){for(const v of views.values())v.setVisible(false);for(const e of embeds.values())parkEmbed(e);active=null;}
+function parkEmbed(entry){if(!entry)return;entry.parked=true;try{const [width,height]=win.getContentSize();entry.view.setBounds({x:Math.max(0,width-2),y:Math.max(0,height-2),width:2,height:2});}catch{}}
+function close(id){closeEmbed(id);backendManager?.stop(id);const v=views.get(id);if(v){views.delete(id);win.contentView.removeChildView(v);v.webContents.close();}lastOpened.delete(id);if(active===id)active=null;}
+function embedTarget(value){
+ if(typeof value!=='string'||value.length>2048)throw Error('嵌入地址无效');
+ let url;try{url=new URL(value);}catch{throw Error('嵌入地址无效');}
+ if(url.protocol!=='http:'||url.username||url.password)throw Error('嵌入地址无效');
+ if(!['127.0.0.1','localhost','[::1]'].includes(url.hostname))throw Error('只能嵌入本机地址');
+ const port=Number(url.port);if(!Number.isSafeInteger(port)||port<1024||port>65535)throw Error('嵌入端口无效');
+ return url.href;
+}
+function embedBounds(id,rect){
+ if(!rect||typeof rect!=='object'||!['x','y','width','height'].every(k=>Number.isFinite(rect[k])))throw Error('窗口尺寸无效');
+ const base=views.get(id)?.getBounds()||{x:0,y:0},[width,height]=win.getContentSize();
+ const x=Math.min(Math.max(0,Math.round(base.x+rect.x)),width),y=Math.min(Math.max(0,Math.round(base.y+rect.y)),height);
+ return {x,y,width:Math.min(Math.max(0,Math.round(rect.width)),width-x),height:Math.min(Math.max(0,Math.round(rect.height)),height-y)};
+}
+function embedView(id){
+ const existing=embeds.get(id);if(existing)return existing;
+ const ses=session.fromPartition('plugin-embed:'+id);
+ ses.setPermissionRequestHandler((wc,permission,callback)=>callback(false));ses.setPermissionCheckHandler(()=>false);
+ const view=new WebContentsView({webPreferences:{preload:path.join(__dirname,'plugin-embed-preload.cjs'),session:ses,nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,autoplayPolicy:'no-user-gesture-required'}});
+ view.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+ view.webContents.on('will-navigate',event=>event.preventDefault());
+ view.webContents.on('render-process-gone',()=>closeEmbed(id));
+ view.webContents.on('did-fail-load',(event,code,description)=>{if(code===-3)return;const host=views.get(id);if(host&&!host.webContents.isDestroyed())host.webContents.send('plugin:embed-error',description);closeEmbed(id);});
+ const entry={view,url:''};embeds.set(id,entry);
+ win.contentView.addChildView(view);view.setVisible(false);
+ return entry;
+}
 async function show(id,rect){const manifest=registry.get(id);hide();let view=views.get(id);if(!view){
  const ses=session.fromPartition('plugin:'+id);
  if(ses.protocol.isProtocolHandled && await ses.protocol.isProtocolHandled('wb-plugin'))ses.protocol.unhandle('wb-plugin');
@@ -102,9 +134,9 @@ ipcMain.handle('host:request',result(async(e,method,args)=>{hostSender(e);if(!Ar
  case 'plugins.installOnline':return installOnline(args[0]);
  case 'plugins.update':return updatePlugin(args[0]);
  case 'enable':case 'remove':{const [id,enabled]=args;if(typeof id!=='string')throw Error('参数无效');if(method==='enable')await registry.setEnabled(id,enabled);else {const consent=await dialog.showMessageBox(win,{type:'question',buttons:['取消','卸载'],defaultId:0,cancelId:0,message:'卸载此插件？',detail:'保留文件夹配置，不删除原文件。'});if(consent.response!==1)return registry.list();await registry.remove(id);}close(id);await files('revokePlugin',id);return registry.list();}
- case 'show':{const [id,rect]=args;const checked=bounds(rect),generation=++selectionGeneration;const view=await show(id,checked);if(generation!==selectionGeneration)return;view.setBounds(checked);view.setVisible(true);active=id;view.webContents.send('plugin:theme',theme);return;}
+ case 'show':{const [id,rect]=args;const checked=bounds(rect),generation=++selectionGeneration;const view=await show(id,checked);if(generation!==selectionGeneration)return;view.setBounds(checked);view.setVisible(true);const open=embeds.get(id);if(open){open.view.setBounds(embedBounds(id,open.rect||{x:0,y:0,width:checked.width,height:checked.height}));open.view.setVisible(true);}active=id;view.webContents.send('plugin:theme',theme);return;}
  case 'hide':selectionGeneration++;hide();return;
- case 'bounds':if(active&&views.has(active))views.get(active).setBounds(bounds(args[0]));return;
+ case 'bounds':{const next=bounds(args[0]);if(active&&views.has(active))views.get(active).setBounds(next);const open=active?embeds.get(active):null;if(open)open.view.setBounds(embedBounds(active,open.rect||{x:0,y:0,width:next.width,height:next.height}));return;}
  case 'theme':if(!['light','dark'].includes(args[0]))throw Error('主题无效');theme=args[0];win.setTitleBarOverlay(windowTheme(theme));win.setBackgroundColor(windowTheme(theme).color);for(const v of views.values())v.webContents.send('plugin:theme',theme);return;
  case 'close':close(args[0]);return;
  case 'update.status':return updateStatus;
@@ -124,9 +156,16 @@ ipcMain.handle('plugin:request',result(async(e,method,args)=>{const id=pluginSen
  case 'files.read':requirePermission(id,'file.receive');return files('read',id,args[0],args[1]);
  case 'files.menu':{if(active!==id)throw Error('应用不在前台');const token=args[0],file=await files('describe',id,token);const handlers=registry.handlers(file.name);const items=handlers.length?handlers.map(handler=>({label:handler.name,click:async()=>{try{registry.get(handler.id);requirePermission(handler.id,'file.receive');const grant=await files('grant',id,token,handler.id);lastOpened.set(handler.id,grant);const target=views.get(handler.id);if(target)target.webContents.send('plugin:open',grant);win.webContents.send('host:navigate',handler.id);}catch(err){win.webContents.send('host:error',err.message);}}})):[{label:'没有可用应用',enabled:false}];Menu.buildFromTemplate([{label:'打开方式',submenu:items}]).popup({window:win});return;}
  case 'backend.request':return backendManager.request(id,args[0],args[1]);
+ case 'view.open':{requirePermission(id,'native.backend');if(active!==id)throw Error('请先打开此应用');const target=embedTarget(args[0]),entry=embedView(id);entry.rect={...args[1]};entry.view.setBounds(embedBounds(id,args[1]));entry.view.setVisible(true);if(entry.url!==target){const previous=entry.url,sameDocument=previous&&previous.split('#')[0]===target.split('#')[0];const nextPlay=new URL(target).hash?new URLSearchParams(new URL(target).hash.slice(1)).get('play'):null;entry.url=target;if(sameDocument&&nextPlay){if(!entry.view.webContents.isLoading())entry.view.webContents.send('embed:play',nextPlay);}else await entry.view.webContents.loadURL(target).catch(()=>{});}return true;}
+ case 'view.bounds':{requirePermission(id,'native.backend');const entry=embeds.get(id);if(!entry)throw Error('内嵌视图未打开');entry.view.setBounds(embedBounds(id,args[0]));return true;}
+ case 'view.close':closeEmbed(id);return true;
+ case 'view.command':{requirePermission(id,'native.backend');const entry=embeds.get(id);if(!entry)throw Error('内嵌视图未打开');entry.view.webContents.send('embed:command',String(args[0]||''));return true;}
  default:throw Error('未知操作');
  }
 }));
+ipcMain.on('embed:state',e=>{const state=e.args?.[0]||{};for(const [id,entry] of embeds){if(entry.view.webContents!==e.sender)continue;entry.state=state;const host=views.get(id);if(host&&!host.webContents.isDestroyed())host.webContents.send('plugin:embed-state',state);return;}});
+ipcMain.on('embed:park',e=>{for(const [id,entry] of embeds){if(entry.view.webContents!==e.sender)continue;parkEmbed(entry);const host=views.get(id);if(host&&!host.webContents.isDestroyed())host.webContents.send('plugin:embed-parked');return;}});
+ipcMain.on('embed:close',e=>{for(const [id,entry] of embeds){if(entry.view.webContents!==e.sender)continue;closeEmbed(id);const host=views.get(id);if(host&&!host.webContents.isDestroyed())host.webContents.send('plugin:embed-closed');return;}});
 app.whenReady().then(async()=>{registry=new Registry(path.join(app.getPath('userData'),'plugins-v1'));await registry.init();
  const builtin=path.join(app.getAppPath(),'bundled-plugins');for(const entry of await fs.readdir(builtin)){if(entry.endsWith('.wbplugin')){const pkg=JSON.parse(await fs.readFile(path.join(builtin,entry),'utf8'));if(!registry.items.has(pkg.manifest.id)&&!await fs.stat(path.join(app.getPath('userData'),'plugins-seeded')).then(()=>true,()=>false))await registry.install(pkg);}}
  await fs.writeFile(path.join(app.getPath('userData'),'plugins-seeded'),'1');
@@ -137,6 +176,6 @@ app.whenReady().then(async()=>{registry=new Registry(path.join(app.getPath('user
 
  win=new BrowserWindow({width:1320,height:880,minWidth:960,minHeight:640,backgroundColor:windowTheme(theme).color,titleBarStyle:'hidden',titleBarOverlay:windowTheme(theme),autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
  desktopLifecycle=setupDesktopLifecycle({app,win,backendManager,electron:require('electron')});
- win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());win.on('closed',()=>{for(const v of views.values())v.webContents.close();views.clear();worker.terminate();backendManager.dispose();});await win.loadURL(hostURL);setupUpdates();
+ win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());win.on('closed',()=>{for(const v of views.values())v.webContents.close();views.clear();embeds.clear();worker.terminate();backendManager.dispose();});await win.loadURL(hostURL);setupUpdates();
 }).catch(e=>{dialog.showErrorBox('无法启动',e.message);app.quit();});
 app.on('window-all-closed',()=>app.quit());

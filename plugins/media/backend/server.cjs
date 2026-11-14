@@ -28,7 +28,8 @@ class MediaServer{
   }
   if(!['GET','HEAD'].includes(req.method)){json(res,405,{error:'只读服务'});return;}
   const assets={'/':'index.html','/app.js':'app.js','/style.css':'style.css','/tokens.css':'../tokens.css'};
-  if(Object.hasOwn(assets,route)){const file=assets[route],data=await fs.readFile(path.join(__dirname,'../web',file));res.writeHead(200,{'Content-Type':file.endsWith('.js')?'application/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8','Content-Length':data.length});res.end(req.method==='HEAD'?undefined:data);return;}
+  if(route==='/favicon.ico'){res.writeHead(204);res.end();return;}
+  if(Object.hasOwn(assets,route)){const file=assets[route];let data;try{data=await fs.readFile(path.join(__dirname,'../web',file));}catch{if(route!=='/tokens.css')throw Error();data=await fs.readFile(path.join(__dirname,'../../../design/tokens.css'));}res.writeHead(200,{'Content-Type':file.endsWith('.js')?'application/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8','Content-Length':data.length});res.end(req.method==='HEAD'?undefined:data);return;}
   const cookie=(req.headers.cookie||'').split(';').map(p=>p.trim()).find(p=>p.startsWith(state.cookie+'='))?.slice(state.cookie.length+1);const session=state.sessions.get(cookie);if(!session||session.expires<Date.now()){if(cookie)state.sessions.delete(cookie);json(res,401,{error:'请使用有效分享链接进入'});return;}
   if(route==='/api/library'){const page=Number(url.searchParams.get('page')||0);try{const data=this.catalog.list({page,kind:url.searchParams.get('kind')||'all',query:url.searchParams.get('q')||'',library:url.searchParams.get('library')||'',playlist:url.searchParams.get('playlist')||'',availableOnly:true});json(res,200,data);}catch{json(res,400,{error:'筛选参数无效'});}return;}
   if(route==='/api/playlists'){json(res,200,this.catalog.playlists().map(({id,name,available})=>({id,name,count:available})));return;}
@@ -50,7 +51,8 @@ class MediaServer{
  }
  revoke(rootId){for(const item of this.streams)if(item.rootId===rootId){item.stream.destroy();item.res.destroy();}}
  async stop(lan=true){await this.starting[lan?'lan':'local']?.catch(()=>{});const state=lan?this.lan:this.local;if(!state)return;for(const item of this.streams)if(item.state===state){item.stream.destroy();item.res.destroy();}state.sessions.clear();state.server.closeAllConnections();await new Promise(resolve=>state.server.close(resolve));if(lan)this.lan=null;else this.local=null;}
- async open(id,playlist){if(id)this.catalog.item(id);if(playlist)this.catalog.playlist(playlist);const state=await this.start(false);await this.context.host('browser.open','http://127.0.0.1:'+state.port+'/#token='+state.secret+(id?'&play='+id:'')+(playlist?'&playlist='+encodeURIComponent(playlist):''));return true;}
+ async open(id,playlist){const url=await this.embedUrl(id,playlist);await this.context.host('browser.open',url);return true;}
+ async embedUrl(id,playlist){if(id)this.catalog.item(id);if(playlist)this.catalog.playlist(playlist);const state=await this.start(false);return 'http://127.0.0.1:'+state.port+'/#token='+state.secret+(id?'&play='+id:'')+(playlist?'&playlist='+encodeURIComponent(playlist):'');}
  async dispose(){this.closing=true;await Promise.all([this.stop(true),this.stop(false)]);}
 }
 module.exports={MediaServer,range,privateAddress};

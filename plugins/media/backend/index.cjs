@@ -14,10 +14,11 @@ exports.create=async context=>{const catalog=new Catalog(context);await catalog.
   case 'add':return catalog.add(args[0]||'all');
   case 'enable':if(!args[1])server.revoke(args[0]);return catalog.change(args[0],args[1]);
   case 'remove':server.revoke(args[0]);return catalog.remove(args[0]);
-  case 'scan':return catalog.start();
+  case 'scan':return catalog.start({rehash:args[0]===true});
   case 'cancel':return catalog.cancel();
   case 'favorite':return catalog.favorite(args[0],args[1]);
   case 'open':return server.open(args[0],args[1]);
+  case 'embed':return {url:await server.embedUrl(args[0],args[1])};
   case 'share.start':return server.start(true,args[0]===undefined?8098:args[0]);
   case 'share.stop':await server.stop(true);return server.info();
   default:throw Error('未知媒体操作');
