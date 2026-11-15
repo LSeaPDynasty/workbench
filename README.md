@@ -1,5 +1,7 @@
 # Modular Workbench
 
+新插件 **MC 汉化 1.0.0**：把 Minecraft 整合包的汉化工具链接进工作台，读覆盖率与缺口、逐条对照译文、改接口配置并在界面里起停翻译流水线。翻译仍由本机工具链执行，插件不内置模型凭据。用法与权限边界见 [MC 汉化插件](docs/HANHUA-PLUGIN.md)。
+
 独立插件 **影音库 1.1.0**：本地音乐/视频管理、歌单、自定义资料、完整 SHA-256 内容去重索引，外部改名或移动后重新扫描仍保留收藏与歌单；支持封面、字幕和局域网共享。主体 0.5.1 在插件管理中检查更新或在线获取即可，无需重装主体。旧版首次升级请先重新扫描补齐哈希，再批量移动文件。使用方式与格式限制见 [影音库](docs/MEDIA-PLUGIN.md)。
 
 当前版本：0.5.1，Git 插件 2.0.0。在「插件 → 在线获取」中浏览、搜索、下载并安装发行仓库的插件，也可以从本地文件安装。私有仓库沿用 GitHub CLI 登录凭据；不需要安装 Git 插件。下载校验成功后会确认权限，再完成安装。主体提供通用的页面与本机后台运行时；Git 命令、GitHub 登录、账号和仓库资料均由 Git 插件自己的后台进程处理，随独立 `.wbplugin` 发布。使用方式及权限边界见 [插件运行时](docs/PLUGIN-RUNTIME-V1.md)、[后台协议](docs/PLUGIN-CAPABILITIES.md) 和 [更新记录](docs/CHANGELOG.md)。
@@ -22,6 +24,7 @@ Electron + React + TypeScript + Vite；SQLite 保存本地结构化数据；elec
 
 - [项目上下文与对话交接](docs/PROJECT-CONTEXT.md)
 - [数据库插件](docs/DATABASE-PLUGIN.md)
+- [MC 汉化插件](docs/HANHUA-PLUGIN.md)
 - [开发规范](AGENTS.md)
 - [底层架构](docs/ARCHITECTURE.md)
 - [多应用运行时、后台任务与内存治理](docs/RUNTIME.md)

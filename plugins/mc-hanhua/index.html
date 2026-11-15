@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MC 汉化</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<svg class="icon-sprite" aria-hidden="true" focusable="false">
+ <symbol id="i-overview" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></symbol>
+ <symbol id="i-translate" viewBox="0 0 24 24"><path d="M3 5h8M7 5v2c0 4-2 6.5-4.5 8M5 10c1.2 3 3.6 5 6.5 6"/><path d="M13 20l4.5-11L22 20M14.6 16h5.8"/></symbol>
+ <symbol id="i-api" viewBox="0 0 24 24"><path d="M9 3v6M15 3v6M7 9h10v2a5 5 0 0 1-10 0zM12 16v5"/></symbol>
+ <symbol id="i-mods" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9"/></symbol>
+</svg>
+
+<aside class="sidebar">
+ <div class="brand">
+  <span class="brand-mark" aria-hidden="true">汉</span>
+  <div class="brand-text"><strong>MC 汉化</strong><small>模组与任务书</small></div>
+ </div>
+ <nav class="nav" aria-label="主导航">
+  <button type="button" data-view="overview" class="selected" aria-current="page" aria-label="概览"><svg class="icon" aria-hidden="true"><use href="#i-overview"></use></svg><span>概览</span></button>
+  <button type="button" data-view="translate" aria-label="翻译"><svg class="icon" aria-hidden="true"><use href="#i-translate"></use></svg><span>翻译</span></button>
+  <button type="button" data-view="api" aria-label="接口"><svg class="icon" aria-hidden="true"><use href="#i-api"></use></svg><span>接口</span></button>
+  <button type="button" data-view="mods" aria-label="模组清单"><svg class="icon" aria-hidden="true"><use href="#i-mods"></use></svg><span>模组清单</span></button>
+ </nav>
+ <div class="side-foot">
+  <span class="dot" aria-hidden="true" id="tool-dot"></span>
+  <span id="tool-state">正在读取工具链</span>
+ </div>
+</aside>
+
+<main>
+ <header class="topbar">
+  <div class="pack">
+   <h1 id="pack-name">正在读取整合包</h1>
+   <p class="pack-path" id="pack-path">正在读取整合包信息</p>
+  </div>
+  <div class="topbar-status">
+   <span class="chip" id="api-chip"><span class="dot" aria-hidden="true"></span><span id="api-chip-text">接口未配置</span></span>
+   <span class="chip" id="job-chip"><span class="dot" aria-hidden="true"></span><span id="job-chip-text">空闲</span></span>
+  </div>
+ </header>
+
+ <div class="notice" id="notice" role="status" aria-live="polite" hidden>
+  <p id="notice-text"></p>
+  <button type="button" id="notice-close" aria-label="关闭提示">关闭</button>
+ </div>
+
+ <div class="views" id="views">
+
+  <section class="view" id="view-overview" data-view="overview" aria-label="概览">
+   <div class="flags" id="flags" hidden></div>
+
+   <section class="card">
+    <h2 class="card-title">整合包目录</h2>
+    <div class="path-row">
+     <input class="path-input" id="pack-input" type="text" spellcheck="false" autocomplete="off" aria-label="整合包版本文件夹路径" placeholder="粘贴版本文件夹路径，回车生效">
+     <div class="btn-row">
+      <button type="button" id="pick-pack" aria-label="选择整合包文件夹">选择文件夹</button>
+      <button type="button" id="apply-pack" class="primary" aria-label="应用整合包路径">应用路径</button>
+      <button type="button" id="open-pack" aria-label="打开整合包目录">打开目录</button>
+     </div>
+    </div>
+    <p class="hint" id="pack-hint">这个文件夹里要有 mods 和 config，也就是 Minecraft 的版本文件夹。</p>
+   </section>
+
+   <section class="card">
+    <h2 class="card-title">汉化工具链目录</h2>
+    <div class="path-row">
+     <input class="path-input" id="tool-input" type="text" readonly aria-label="汉化工具链目录">
+     <div class="btn-row">
+      <button type="button" id="pick-tool" aria-label="选择汉化工具链目录">选择工具链目录</button>
+      <button type="button" id="open-root" aria-label="打开工具链目录">打开</button>
+     </div>
+    </div>
+    <p class="hint" id="tool-hint">目录里要有 tools/pipeline.mjs。</p>
+   </section>
+
+   <div class="stats">
+    <article class="card stat">
+     <h3 class="stat-label">模组键覆盖率</h3>
+     <p class="stat-value" id="stat-pct">—</p>
+     <div class="bar" id="stat-pct-bar" role="progressbar" aria-label="模组键覆盖率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="bar-pct"></i></div>
+     <p class="stat-note" id="stat-pct-note">尚未扫描</p>
+    </article>
+    <article class="card stat">
+     <h3 class="stat-label">模组缺口</h3>
+     <p class="stat-value" id="stat-gap">—</p>
+     <p class="stat-note" id="stat-gap-note">尚未扫描</p>
+    </article>
+    <article class="card stat">
+     <h3 class="stat-label">文本完成度</h3>
+     <p class="stat-value" id="stat-text">—</p>
+     <p class="stat-note" id="stat-text-note">尚未扫描</p>
+    </article>
+    <article class="card stat">
+     <h3 class="stat-label">校验覆盖率</h3>
+     <p class="stat-value" id="stat-verify">—</p>
+     <p class="stat-note" id="stat-verify-note">尚未扫描</p>
+    </article>
+   </div>
+
+   <section class="card">
+    <h2 class="card-title">产物与缓存</h2>
+    <dl class="kv">
+     <dt>已装资源包</dt><dd id="art-rp">—</dd>
+     <dt>任务书中文文件</dt><dd id="art-quest">—</dd>
+     <dt>翻译缓存（命中不花钱）</dt><dd id="art-cache">—</dd>
+     <dt>缺口合计（键 + 单元）</dt><dd id="art-gap">—</dd>
+    </dl>
+    <p class="hint" id="game-hint">进游戏后在资源包列表最上面启用中文资源包。</p>
+   </section>
+
+   <section class="card">
+    <h2 class="card-title">目录</h2>
+    <div class="btn-row">
+     <button type="button" data-open="dist" aria-label="打开 dist 目录">打开 dist</button>
+     <button type="button" data-open="work" aria-label="打开 work 目录">打开 work</button>
+     <button type="button" data-open="data" aria-label="打开 data 目录">打开 data</button>
+     <button type="button" data-open="resourcepacks" aria-label="打开 resourcepacks 目录">打开 resourcepacks</button>
+     <button type="button" data-open="quests" aria-label="打开任务书中文目录">打开任务书 zh_cn</button>
+    </div>
+   </section>
+  </section>
+
+  <section class="view" id="view-translate" data-view="translate" aria-label="翻译" hidden>
+   <section class="card">
+    <div class="controls" id="run-form">
+     <label class="field"><span>运行方式</span>
+      <select id="mode">
+       <option value="translate">AI 翻译</option>
+       <option value="dry">只估算</option>
+       <option value="build">只打包回写</option>
+      </select>
+     </label>
+     <label class="field"><span>范围</span>
+      <select id="kind">
+       <option value="all">全部</option>
+       <option value="mods">只要模组</option>
+       <option value="text">只要任务书 KubeJS</option>
+      </select>
+     </label>
+     <label class="field"><span>命名空间</span><input id="ns" type="text" spellcheck="false" autocomplete="off" placeholder="可空，例如 chisel"></label>
+     <label class="field narrow"><span>本次最多翻</span><input id="limit" type="number" min="0" step="50" placeholder="不限"></label>
+     <div class="btn-row actions">
+      <button type="button" id="run" class="primary" aria-label="按上面选项开始运行流水线">开始</button>
+      <button type="button" id="stop" class="danger" disabled aria-label="停止当前任务">停止</button>
+     </div>
+    </div>
+    <p class="hint" id="run-hint">「只估算」不调接口、不花钱，用来看规模；「只打包回写」不发请求，把已有译文打包安装。</p>
+   </section>
+
+   <div class="progress-row">
+    <div class="bar" id="job-bar-wrap" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="job-bar"></i></div>
+    <p class="progress-text" id="progress-text" aria-live="polite">空闲</p>
+   </div>
+
+   <div class="log-wrap">
+    <div class="log" id="log" role="log" aria-label="任务日志" tabindex="0"><p class="log-empty">日志会出现在这里。先点「只估算」看规模，不发请求、不花钱。</p></div>
+   </div>
+
+   <div class="btn-row">
+    <button type="button" id="clear-log" aria-label="清空日志面板">清空日志</button>
+    <button type="button" data-open="dist" aria-label="打开 dist 目录">打开 dist</button>
+    <button type="button" data-open="resourcepacks" aria-label="打开 resourcepacks 目录">打开 resourcepacks</button>
+    <button type="button" data-open="quests" aria-label="打开任务书中文目录">打开任务书 zh_cn</button>
+   </div>
+  </section>
+
+  <section class="view" id="view-api" data-view="api" aria-label="接口设置" hidden>
+   <div class="api-grid">
+    <section class="card">
+     <h2 class="card-title">OpenAI 兼容接口</h2>
+     <div class="form-stack">
+      <label class="field"><span>Base URL</span><input id="f-base" type="text" spellcheck="false" autocomplete="off" placeholder="接口地址，要带协议前缀"></label>
+      <label class="field"><span>模型</span><input id="f-model" type="text" spellcheck="false" autocomplete="off" placeholder="例如 deepseek-chat"></label>
+      <label class="field"><span>API Key</span><input id="f-key" type="password" autocomplete="off" placeholder="粘贴 API Key"></label>
+      <label class="check-row" id="key-clear-row" hidden><input type="checkbox" id="f-clear"><span>清除已保存的 Key</span></label>
+      <div class="field-row">
+       <label class="field"><span>并发</span><input id="f-concurrency" type="number" min="1" max="64" step="1" placeholder="4"></label>
+       <label class="field"><span>每批条数</span><input id="f-batch" type="number" min="1" max="2000" step="10" placeholder="50"></label>
+      </div>
+      <div class="btn-row">
+       <button type="button" id="save-config" class="primary" aria-label="保存接口配置">保存</button>
+       <button type="button" id="test-api" aria-label="测试接口连通性">测试接口</button>
+      </div>
+      <p class="hint" id="api-out" role="status" aria-live="polite"></p>
+     </div>
+    </section>
+    <section class="card">
+     <h2 class="card-title">当前状态</h2>
+     <dl class="kv">
+      <dt>接口</dt><dd id="cfg-api-state">—</dd>
+      <dt>当前模型</dt><dd id="cfg-model">—</dd>
+      <dt>并发 / 每批</dt><dd id="cfg-nums">—</dd>
+      <dt>配置文件</dt><dd id="cfg-file">—</dd>
+     </dl>
+     <p class="hint">Key 只存在本机工具链目录的 config.local.json，不写进工作台数据目录，页面也不回显。并发 4–16、每批 30–80 最稳；填太大会大量重试反而更慢。</p>
+    </section>
+   </div>
+  </section>
+
+  <section class="view" id="view-mods" data-view="mods" aria-label="模组清单" hidden>
+   <div class="toolbar">
+    <label class="field grow"><span>搜索命名空间</span><input id="mod-search" type="search" spellcheck="false" placeholder="例如 chisel / ae2 / create"></label>
+    <label class="field"><span>排序</span>
+     <select id="mod-sort">
+      <option value="gap">缺口大 → 小</option>
+      <option value="pct">覆盖率低 → 高</option>
+      <option value="en">键数多 → 少</option>
+      <option value="ns">按名称</option>
+     </select>
+    </label>
+    <label class="switch"><input type="checkbox" id="mod-gap-only" checked><span>只看有缺口的</span></label>
+    <span class="count" id="mod-count"></span>
+   </div>
+
+   <div class="chips-row" id="mod-chips" aria-label="缺口最多的模组"></div>
+
+   <div class="table-wrap">
+    <table class="mods">
+     <thead>
+      <tr>
+       <th scope="col">命名空间</th>
+       <th scope="col" class="num">键数</th>
+       <th scope="col" class="num">已有中文</th>
+       <th scope="col" class="num">缺口</th>
+       <th scope="col">覆盖率</th>
+       <th scope="col"><span class="sr-only">操作</span></th>
+      </tr>
+     </thead>
+     <tbody id="mod-body">
+      <tr><td class="table-empty" colspan="6">正在读取模组清单…</td></tr>
+     </tbody>
+    </table>
+   </div>
+  </section>
+
+ </div>
+
+ <aside class="drawer" id="drawer" hidden aria-label="模组预览">
+  <div class="drawer-head">
+   <div class="drawer-title-wrap">
+    <h2 id="drawer-title">预览</h2>
+    <p class="drawer-meta" id="drawer-meta" aria-live="polite"></p>
+   </div>
+   <div class="btn-row">
+    <button type="button" id="drawer-translate" class="primary" aria-label="翻译这个模组">翻译这个模组</button>
+    <button type="button" id="drawer-close" aria-label="关闭预览">关闭</button>
+   </div>
+  </div>
+  <div class="drawer-body" id="drawer-body"></div>
+ </aside>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "id": "mc-hanhua",
+  "name": "MC 汉化",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "index.html",
+  "backend": "backend/index.cjs",
+  "permissions": ["folders.read", "native.backend"]
+}
